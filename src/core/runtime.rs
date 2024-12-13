@@ -7,6 +7,7 @@ use crate::{
     core::agent::{Agent, ResponseDecision},
     memory::MemoryStore,
     providers::twitter::Twitter,
+    providers::telegram::Telegram,
 };
 
 #[derive(Serialize, Deserialize, Default)]
@@ -20,6 +21,7 @@ pub struct Runtime {
     agents: Vec<Agent>,
     memory: Vec<String>,
     processed_tweets: HashSet<String>,
+    telegram: Telegram,
 }
 
 impl Runtime {
@@ -29,6 +31,7 @@ impl Runtime {
         twitter_consumer_secret: &str,
         twitter_access_token: &str,
         twitter_access_token_secret: &str,
+        telegram_bot_token: &str,
     ) -> Self {
         let twitter = Twitter::new(
             twitter_consumer_key,
@@ -36,7 +39,7 @@ impl Runtime {
             twitter_access_token,
             twitter_access_token_secret,
         );
-
+        let telegram = Telegram::new(telegram_bot_token);
         let agents = Vec::new();
         let memory: Vec<String> = MemoryStore::load_memory().unwrap_or_else(|_| Vec::new());
 
@@ -49,6 +52,7 @@ impl Runtime {
             agents,
             twitter,
             processed_tweets,
+            telegram
         }
     }
 
@@ -135,7 +139,7 @@ impl Runtime {
             if let Err(e) = MemoryStore::save_processed_tweets(&self.processed_tweets) {
                 eprintln!("Failed to save processed tweets: {}", e);
             }
-            Self::random_delay(30, 60).await;
+            Self::random_delay(180, 300).await;
         }
 
         Ok(())
@@ -148,6 +152,8 @@ impl Runtime {
     }
 
     pub async fn run_periodically(&mut self) -> Result<(), anyhow::Error> {
+        //Handle telegram messages
+            self.agents[0].handle_telegram_message(&self.telegram.bot).await;
         loop {
             //Handle regular tweets
             if let Err(e) = self.run().await {
@@ -159,8 +165,8 @@ impl Runtime {
                 eprintln!("Error handling notifications: {}", e);
             }
 
-            //Random delay between 5-15 minutes
-            Self::random_delay(5 * 60, 15 * 60).await;
+            //Random delay between 30-60 minutes
+            Self::random_delay(30 * 60, 60 * 60).await;
         }
     }
 }
