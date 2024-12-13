@@ -10,9 +10,14 @@ use std::{
     env,
     time::{SystemTime, UNIX_EPOCH},
 }; // Add this import at the top of your file
-
+use teloxide::{
+    prelude::*,
+    types::{Message, Update},
+};
 pub struct Agent {
     agent: RigAgent<CompletionModel>,
+    anthropic_api_key: String,
+    prompt: String,
 }
 
 #[derive(Debug, PartialEq)]
@@ -30,7 +35,11 @@ impl Agent {
             .temperature(0.5)
             .max_tokens(4096)
             .build();
-        Agent { agent }
+        Agent { 
+            agent,
+            anthropic_api_key: anthropic_api_key.to_string(),
+            prompt: prompt.to_string(),
+        }
     }
 
     pub async fn should_respond(&self, tweet: &str) -> Result<ResponseDecision, anyhow::Error> {
@@ -73,15 +82,16 @@ impl Agent {
 
     pub async fn generate_post(&self) -> Result<String, anyhow::Error> {
         let prompt = r#"# Task: Write a Social Media Post
-            Write a 1-3 sentence post from your perspective that would be engaging to readers. Keep it casual and friendly in tone. Stay under 280 characters.
+            Write a 1-3 sentence post that would be engaging to readers. Keep it casual and friendly in tone. Stay under 280 characters.
 
             Requirements:
             - Write only the post content, no additional commentary
             - No emojis
             - No hashtags
             - No questions
-            - Don't start with "TWEET:"
-            - Brief, concise statements only"#;
+            - No introductory phrases or meta-commentary
+            - Brief, concise statements only
+            - Focus on personal experiences, observations, or thoughts"#;
         let response = self.agent.prompt(&prompt).await?;
         Ok(response.trim().to_string())
     }
@@ -134,4 +144,47 @@ impl Agent {
 
         Ok(response.bytes().await?.to_vec())
     }
+
+    pub async fn handle_telegram_message(&self, bot: &Bot) {
+        let client = anthropic::ClientBuilder::new(&self.anthropic_api_key).build();
+        let bot = bot.clone();
+        let agent_prompt = self.prompt.clone();
+        teloxide::repl(bot, move |bot: Bot, msg: Message| {
+            let agent = client
+                .agent(CLAUDE_3_HAIKU)
+                .preamble(&agent_prompt)
+                .temperature(0.5)
+                .max_tokens(4096)
+                .build();
+            async move {
+                if let Some(text) = msg.text() {
+                    let should_respond = msg.chat.is_private() || text.contains("@rina_rig_bot");
+                    
+                    if should_respond {
+                        let combined_prompt = format!(
+                            "Task: Generate a conversational reply to this Telegram message while using this as context:\n\
+                            Message: '{}'\n\
+                            Generate a natural response that:\n\
+                            - Is friendly and conversational\n\
+                            - Can use normal punctuation and capitalization\n\
+                            - May include emojis when appropriate\n\
+                            - Maintains a helpful and engaging tone\n\
+                            - Keeps responses concise but not artificially limited\n\
+                            Write only the response text, nothing else:",
+                            text
+                        );
+                        let response = agent
+                            .prompt(&combined_prompt)
+                            .await
+                            .expect("Error generating the response");
+                        println!("Telegram response: {}", response);
+                        bot.send_message(msg.chat.id, response).await?;
+                    }
+                }
+                Ok(())
+            }
+        })
+        .await;
+    }
 }
+
