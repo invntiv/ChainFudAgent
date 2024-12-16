@@ -75,6 +75,8 @@ impl Runtime {
 
         // Tweet with better error context
         let response_clone = response.clone();
+        println!("Generated tweet: {}", response_clone);
+
         // let user_id = self.twitter.get_user_id().await?;
         // self.twitter.tweet_with_image(response, media_id, user_id).await
         //     .map_err(|e| anyhow::anyhow!("Failed to send tweet: {}", e))?;
@@ -146,7 +148,6 @@ impl Runtime {
         //Handle telegram messages
             // self.agents[0].handle_telegram_message(&self.telegram.bot).await;
         loop {
-            println!("Attemped to tweet.");
             //Handle regular tweets
             if let Err(e) = self.run().await {
                 eprintln!("Error running tweet process: {}", e);
