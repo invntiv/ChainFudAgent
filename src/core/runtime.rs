@@ -73,22 +73,13 @@ impl Runtime {
         let response = selected_agent.generate_post().await
             .map_err(|e| anyhow::anyhow!("Failed to generate post: {}", e))?;
 
-        // Generate image with better error context
-        let image_url = selected_agent.generate_image().await
-            .map_err(|e| anyhow::anyhow!("Failed to generate image: {}", e))?;
-
-        // Prepare image with better error context
-        let image_bytes = selected_agent.prepare_image_for_tweet(&image_url).await
-            .map_err(|e| anyhow::anyhow!("Failed to prepare image: {}", e))?;
-
-        // Upload image with better error context
-        let media_id = self.twitter.upload_bytes(image_bytes).await
-            .map_err(|e| anyhow::anyhow!("Failed to upload image: {}", e))?;
-
         // Tweet with better error context
         let response_clone = response.clone();
-        let user_id = self.twitter.get_user_id().await?;
-        self.twitter.tweet_with_image(response, media_id, user_id).await
+        // let user_id = self.twitter.get_user_id().await?;
+        // self.twitter.tweet_with_image(response, media_id, user_id).await
+        //     .map_err(|e| anyhow::anyhow!("Failed to send tweet: {}", e))?;
+
+        self.twitter.tweet(response).await
             .map_err(|e| anyhow::anyhow!("Failed to send tweet: {}", e))?;
 
         // Save to memory
@@ -153,17 +144,18 @@ impl Runtime {
 
     pub async fn run_periodically(&mut self) -> Result<(), anyhow::Error> {
         //Handle telegram messages
-            self.agents[0].handle_telegram_message(&self.telegram.bot).await;
+            // self.agents[0].handle_telegram_message(&self.telegram.bot).await;
         loop {
+            println!("Attemped to tweet.");
             //Handle regular tweets
             if let Err(e) = self.run().await {
                 eprintln!("Error running tweet process: {}", e);
             }
 
             //Handle notifications
-            if let Err(e) = self.handle_notifications().await {
-                eprintln!("Error handling notifications: {}", e);
-            }
+            // if let Err(e) = self.handle_notifications().await {
+            //     eprintln!("Error handling notifications: {}", e);
+            // }
 
             //Random delay between 30-60 minutes
             Self::random_delay(30 * 60, 60 * 60).await;
