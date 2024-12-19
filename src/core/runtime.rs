@@ -4,7 +4,7 @@ use std::collections::HashSet;
 use tokio::time::{sleep, Duration};
 use twitter_v2::id::NumericId;
 use crate::character::{CharacterConfig, InstructionBuilder};
-
+    
 use crate::{
     core::agent::{Agent, ResponseDecision},
     memory::MemoryStore,
@@ -152,7 +152,7 @@ impl Runtime {
             Some(last_check) => {
                 // Only check notifications every 15 minutes
                 let duration = Utc::now().signed_duration_since(last_check);
-                duration.num_minutes() >= 15
+                duration.num_minutes() >= 5
             }
         }
     }
@@ -225,7 +225,7 @@ impl Runtime {
 
     fn schedule_next_tweet(&mut self) {
         let mut rng = rand::thread_rng();
-        let delay_secs = rng.gen_range(30 * 60..60 * 60); // 30-60 minutes
+        let delay_secs = rng.gen_range(5 * 60..15 * 60); 
         let next_tweet = Utc::now() + chrono::Duration::seconds(delay_secs as i64);
         self.memory.next_tweet = Some(next_tweet);
 

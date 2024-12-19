@@ -41,6 +41,7 @@ dependencies = [
  "rig-core",
  "serde",
  "serde_json",
+ "strsim 0.10.0",
  "teloxide",
  "tokio",
  "tweety-rs",
