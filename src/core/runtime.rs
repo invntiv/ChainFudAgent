@@ -153,10 +153,10 @@ impl Runtime {
                 eprintln!("Error running tweet process: {}", e);
             }
 
-            //Handle notifications
-            // if let Err(e) = self.handle_notifications().await {
-            //     eprintln!("Error handling notifications: {}", e);
-            // }
+           // Handle notifications
+            if let Err(e) = self.handle_notifications().await {
+                eprintln!("Error handling notifications: {}", e);
+            }
 
             //Random delay between 30-60 minutes
             Self::random_delay(30 * 60, 60 * 60).await;

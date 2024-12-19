@@ -48,6 +48,7 @@ impl MemoryStore {
 
     // Save memory to file
     pub fn save_memory(memory: &Vec<String>) -> io::Result<()> {
+        fs::create_dir_all("./storage")?;
         let data = serde_json::to_string(memory)?;
         let mut file = fs::File::create(Self::FILE_PATH)?;
         file.write_all(data.as_bytes())?;
