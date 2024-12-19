@@ -5,6 +5,7 @@ mod providers;
 use core::{instruction_builder::InstructionBuilder, runtime::Runtime};
 extern crate dotenv;
 pub mod models;
+pub mod character;
 
 use dotenv::dotenv;
 use std::env;
