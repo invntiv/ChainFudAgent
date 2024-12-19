@@ -9,15 +9,17 @@ use serde_json::json;
 use std::{
     env,
     time::{SystemTime, UNIX_EPOCH},
-}; // Add this import at the top of your file
+}; 
+
 use teloxide::{
     prelude::*,
     types::{Message, Update},
 };
+
 pub struct Agent {
     agent: RigAgent<CompletionModel>,
     anthropic_api_key: String,
-    prompt: String,
+    pub prompt: String,
 }
 
 #[derive(Debug, PartialEq)]
@@ -81,20 +83,21 @@ impl Agent {
     }
 
     pub async fn generate_post(&self) -> Result<String, anyhow::Error> {
-        let prompt = r#"# Task: Write a Social Media Post
-            Write a 1-3 sentence post that would be engaging to readers. Keep it casual and friendly in tone. Stay under 280 characters.
+        let prompt = r#"Write a 1-3 sentence post that would be engaging to readers. Your response should be the EXACT text of the tweet only, with no introductions, meta-commentary, or explanations.
 
             Requirements:
-            - Write only the post content, no additional commentary
+            - Stay under 280 characters
             - No emojis
             - No hashtags
             - No questions
-            - No introductory phrases or meta-commentary
             - Brief, concise statements only
-            - Focus on personal experiences, observations, or thoughts"#;
+            - Focus on personal experiences, observations, or thoughts
+            - Write ONLY THE TWEET TEXT with no additional words or commentary"#;
+        
         let response = self.agent.prompt(&prompt).await?;
         Ok(response.trim().to_string())
     }
+
     pub async fn generate_image(&self) -> Result<String, anyhow::Error> {
         let client = reqwest::Client::builder().build()?;
         dotenv::dotenv().ok();

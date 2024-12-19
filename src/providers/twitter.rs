@@ -49,7 +49,8 @@ impl Twitter {
 
         Ok(())
     }
-    pub async fn tweet(&self, text: String) -> Result<(), anyhow::Error> {
+
+    pub async fn tweet(&self, text: String) -> Result<twitter_v2::Tweet, anyhow::Error> {
         let tweet = TwitterApi::new(self.auth.clone())
             .post_tweet()
             .text(text)
@@ -58,8 +59,8 @@ impl Twitter {
             .into_data()
             .expect("this tweet should exist");
         println!("Tweet posted successfully with ID: {}", tweet.id);
-
-        Ok(())
+    
+        Ok(tweet)
     }
 
     pub async fn reply_to_tweet(&self, tweet_id: &str, text: String) -> Result<(), anyhow::Error> {

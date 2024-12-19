@@ -1,63 +1,88 @@
-use serde_json;
 use std::fs;
 use std::io::{self, Write};
 use std::path::Path;
-use serde::{Serialize, Deserialize};
-pub struct MemoryStore;
+use crate::models::{Memory, Tweet, ProcessedNotifications, TweetType};
 use std::collections::HashSet;
+use chrono::{DateTime, Utc};
 
-#[derive(Serialize, Deserialize, Default)]
-pub struct ProcessedNotifications {
-    tweet_ids: HashSet<String>,
-}
+pub struct MemoryStore;
+
 impl MemoryStore {
     const FILE_PATH: &'static str = "./storage/memory.json";
 
     // Load memory from file
-    pub fn load_memory() -> io::Result<Vec<String>> {
+    pub fn load_memory() -> io::Result<Memory> {
         if Path::new(Self::FILE_PATH).exists() {
             let data = fs::read_to_string(Self::FILE_PATH)?;
-            let memory: Vec<String> = serde_json::from_str(&data)?;
+            let memory: Memory = serde_json::from_str(&data)?;
             Ok(memory)
         } else {
-            Ok(Vec::new()) // Return an empty vector if file doesn't exist
+            Ok(Memory::default())
         }
     }
 
-    // Add to memory
-    pub fn add_to_memory(memory: &mut Vec<String>, item: &str) -> Result<(), String> {
-        if !memory.contains(&item.to_string()) {
-            memory.push(item.to_string());
-            let _ = Self::save_memory(memory);
-            Ok(())
-        } else {
-            Err("Memory Exists!".to_string())
-        }
-    }
-
-    // Wipe memory
-    pub fn wipe_memory(memory: &mut Vec<String>) -> io::Result<()> {
-        memory.clear();
-        Self::save_memory(memory)
-    }
-
-    // Count memories
-    pub fn count_memories(memory: &Vec<String>) -> usize {
-        memory.len()
-    }
-
-    // Save memory to file
-    pub fn save_memory(memory: &Vec<String>) -> io::Result<()> {
-        fs::create_dir_all("./storage")?;
-        let data = serde_json::to_string(memory)?;
-        let mut file = fs::File::create(Self::FILE_PATH)?;
-        file.write_all(data.as_bytes())?;
+    // Add to memory for original tweets
+    pub fn add_to_memory(memory: &mut Memory, text: &str, prompt: &str, twitter_id: Option<String>) -> Result<(), String> {
+        let tweet = Tweet {
+            internal_id: memory.next_id,
+            twitter_id,
+            text: text.to_string(),
+            prompt: prompt.to_string(),
+            timestamp: Utc::now(),
+            tweet_type: TweetType::Original,
+            reply_to: None,
+        };
+        
+        memory.tweets.push(tweet);
+        memory.next_id += 1;
+        
+        let _ = Self::save_memory(memory);
         Ok(())
     }
 
-    // Get current memory
-    pub fn get_memory() -> io::Result<Vec<String>> {
-        Self::load_memory()
+    // Add a new method specifically for replies
+    pub fn add_reply_to_memory(
+        memory: &mut Memory,
+        text: &str,
+        prompt: &str,
+        twitter_id: Option<String>,
+        reply_to: String,
+    ) -> Result<(), String> {
+        let tweet = Tweet {
+            internal_id: memory.next_id,
+            twitter_id,
+            text: text.to_string(),
+            prompt: prompt.to_string(),
+            timestamp: Utc::now(),
+            tweet_type: TweetType::Reply,
+            reply_to: Some(reply_to),
+        };
+        
+        memory.tweets.push(tweet);
+        memory.next_id += 1;
+        
+        let _ = Self::save_memory(memory);
+        Ok(())
+    }
+
+    // Update next tweet time
+    pub fn update_next_tweet_time(memory: &mut Memory, next_tweet: DateTime<Utc>) -> io::Result<()> {
+        memory.next_tweet = Some(next_tweet);
+        Self::save_memory(memory)
+    }
+
+    // Get next tweet time
+    pub fn get_next_tweet_time(memory: &Memory) -> Option<DateTime<Utc>> {
+        memory.next_tweet
+    }
+
+    // Save memory to file
+    pub fn save_memory(memory: &Memory) -> io::Result<()> {
+        fs::create_dir_all("./storage")?;
+        let data = serde_json::to_string_pretty(memory)?;
+        let mut file = fs::File::create(Self::FILE_PATH)?;
+        file.write_all(data.as_bytes())?;
+        Ok(())
     }
 
     pub fn load_processed_tweets() -> Result<HashSet<String>, anyhow::Error> {
@@ -68,6 +93,17 @@ impl MemoryStore {
             }
             Err(_) => Ok(HashSet::new())
         }
+    }
+
+    // Get debug mode status
+    pub fn get_debug_mode(memory: &Memory) -> bool {
+        memory.debug_mode
+    }
+
+    // Set debug mode status
+    pub fn set_debug_mode(memory: &mut Memory, debug: bool) -> io::Result<()> {
+        memory.debug_mode = debug;
+        Self::save_memory(memory)
     }
 
     pub fn save_processed_tweets(processed_tweets: &HashSet<String>) -> Result<(), anyhow::Error> {
