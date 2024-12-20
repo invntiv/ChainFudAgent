@@ -2,13 +2,14 @@ use chrono::{DateTime, Utc};
 use rand::Rng;
 use std::collections::HashSet;
 use tokio::time::{sleep, Duration};
-    
+
 use crate::{
     core::agent::{Agent, ResponseDecision},
     memory::MemoryStore,
     models::Memory,
     providers::telegram::Telegram,
     providers::twitter::Twitter,
+    providers::solanatracker::SolanaTracker,
 };
 
 pub struct Runtime {
@@ -21,6 +22,7 @@ pub struct Runtime {
     cached_user_id: Option<u64>,
     last_notification_check: Option<DateTime<Utc>>,
     last_tweet_time: Option<DateTime<Utc>>,
+    solana_tracker: SolanaTracker,
 }
 
 impl Runtime {
@@ -31,6 +33,7 @@ impl Runtime {
         twitter_access_token: &str,
         twitter_access_token_secret: &str,
         telegram_bot_token: &str,
+        solana_tracker_api_key: &str,
     ) -> Self {
         let twitter = Twitter::new(
             twitter_consumer_key,
@@ -41,10 +44,8 @@ impl Runtime {
         let telegram = Telegram::new(telegram_bot_token);
         let agents = Vec::new();
         let memory = MemoryStore::load_memory().unwrap_or_else(|_| Memory::default());
-
-        let processed_tweets =
-            MemoryStore::load_processed_tweets().unwrap_or_else(|_| HashSet::new());
-
+        let processed_tweets = MemoryStore::load_processed_tweets().unwrap_or_else(|_| HashSet::new());
+        let solana_tracker = SolanaTracker::new(solana_tracker_api_key);
         Runtime {
             memory,
             anthropic_api_key: anthropic_api_key.to_string(),
@@ -55,6 +56,7 @@ impl Runtime {
             cached_user_id: None,
             last_notification_check: None,
             last_tweet_time: None,
+            solana_tracker,
         }
     }
 
@@ -75,6 +77,10 @@ impl Runtime {
     }
 
     pub async fn run(&mut self) -> Result<(), anyhow::Error> {
+
+        let summary = self.get_trending_solana_summary().await?;
+        println!("Solana trending summary: {}", summary);
+
         if self.agents.is_empty() {
             return Err(anyhow::anyhow!("No agents available")).map_err(Into::into);
         }
@@ -263,6 +269,11 @@ impl Runtime {
         } else {
             false // No scheduled tweet
         }
+    }
+
+    pub async fn get_trending_solana_summary(&self) -> Result<String, anyhow::Error> {
+        let tokens = self.solana_tracker.get_top_tokens(5).await?;
+        Ok(self.solana_tracker.format_tokens_summary(&tokens, 5))
     }
 
     pub async fn run_periodically(&mut self) -> Result<(), anyhow::Error> {

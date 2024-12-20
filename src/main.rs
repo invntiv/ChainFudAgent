@@ -22,7 +22,8 @@ async fn main() -> Result<(), anyhow::Error> {
         &env::var("TWITTER_CONSUMER_SECRET").expect("TWITTER_CONSUMER_SECRET not set"),
         &env::var("TWITTER_ACCESS_TOKEN").expect("TWITTER_ACCESS_TOKEN not set"),
         &env::var("TWITTER_ACCESS_TOKEN_SECRET").expect("TWITTER_ACCESS_TOKEN_SECRET not set"),
-        &env::var("TELEGRAM_BOT_TOKEN").expect("TELEGRAM_BOT_TOKEN not set")
+        &env::var("TELEGRAM_BOT_TOKEN").expect("TELEGRAM_BOT_TOKEN not set"),
+        &env::var("SOLANA_TRACKER_API_KEY").expect("SOLANA_TRACKER_API_KEY not set"),
     );
 
     let mut instruction_builder = InstructionBuilder::new();
