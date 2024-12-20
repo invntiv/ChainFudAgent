@@ -95,6 +95,11 @@ impl MemoryStore {
         }
     }
 
+    // Get Tweeting mode status
+    pub fn get_tweet_mode(memory: &Memory) -> bool {
+        memory.tweet_mode
+    }
+
     // Get debug mode status
     pub fn get_debug_mode(memory: &Memory) -> bool {
         memory.debug_mode

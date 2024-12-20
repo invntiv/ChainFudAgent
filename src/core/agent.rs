@@ -1,11 +1,10 @@
-use bytes::Bytes;
-use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION, CONTENT_TYPE};
-use reqwest::Client;
 use rig::agent::Agent as RigAgent;
-use rig::completion::Prompt;
 use rig::providers::anthropic::completion::CompletionModel;
 use rig::providers::anthropic::{self, CLAUDE_3_HAIKU};
+use rig::completion::Prompt;
+use rand::{self, Rng};
 use serde_json::json;
+
 use std::{
     env,
     time::{SystemTime, UNIX_EPOCH},
@@ -31,10 +30,13 @@ pub enum ResponseDecision {
 impl Agent {
     pub fn new(anthropic_api_key: &str, prompt: &str) -> Self {
         let client = anthropic::ClientBuilder::new(anthropic_api_key).build();
+        let mut rng = rand::thread_rng();
+        let temperature = 0.9; // Higher temperature for more variety
+
         let agent = client
             .agent(CLAUDE_3_HAIKU)
             .preamble(prompt)
-            .temperature(0.5)
+            .temperature(temperature)
             .max_tokens(4096)
             .build();
         Agent { 

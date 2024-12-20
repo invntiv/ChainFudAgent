@@ -80,55 +80,70 @@ impl Runtime {
         if self.agents.is_empty() {
             return Err(anyhow::anyhow!("No agents available")).map_err(Into::into);
         }
-
+    
         // Check if enough time has passed since last tweet
         if !self.should_allow_tweet().await {
             println!("Waiting for rate limit cooldown...");
             return Ok(());
         }
-
+    
         let mut rng = rand::thread_rng();
         let selected_agent = &self.agents[rng.gen_range(0..self.agents.len())];
-
+    
         let response = selected_agent
             .generate_post()
             .await
             .map_err(|e| anyhow::anyhow!("Failed to generate post: {}", e))?;
-
+    
         println!("Generated tweet: {}", response);
-
-        // Send tweet and handle rate limits
-        match self.twitter.tweet(response.clone()).await {
-            Ok(tweet_result) => {
-                // Update last tweet time
-                self.last_tweet_time = Some(Utc::now());
-                
-                // Get the tweet ID from the tweet result
-                let twitter_id = Some(tweet_result.id.to_string());
-
-                // Save to memory
-                match MemoryStore::add_to_memory(
-                    &mut self.memory,
-                    &response,
-                    &selected_agent.prompt,
-                    twitter_id,
-                ) {
-                    Ok(_) => println!("Response saved to memory."),
-                    Err(e) => eprintln!("Failed to save response to memory: {}", e),
-                }
-
-                println!("AI Response: {}", response);
-                Ok(())
-            }
-            Err(e) => {
-                if e.to_string().contains("429") {
-                    println!("Rate limit hit, waiting 15 minutes before retrying...");
-                    sleep(Duration::from_secs(15 * 60)).await;
+    
+        // Only proceed with tweeting if tweet_mode is true
+        if self.memory.tweet_mode {
+            // Send tweet and handle rate limits
+            match self.twitter.tweet(response.clone()).await {
+                Ok(tweet_result) => {
+                    // Update last tweet time
+                    self.last_tweet_time = Some(Utc::now());
+                    
+                    // Get the tweet ID from the tweet result
+                    let twitter_id = Some(tweet_result.id.to_string());
+    
+                    // Save to memory
+                    match MemoryStore::add_to_memory(
+                        &mut self.memory,
+                        &response,
+                        &selected_agent.prompt,
+                        twitter_id,
+                    ) {
+                        Ok(_) => println!("Response saved to memory."),
+                        Err(e) => eprintln!("Failed to save response to memory: {}", e),
+                    }
+    
+                    println!("AI Response: {}", response);
                     Ok(())
-                } else {
-                    Err(e)
+                }
+                Err(e) => {
+                    if e.to_string().contains("429") {
+                        println!("Rate limit hit, waiting 15 minutes before retrying...");
+                        sleep(Duration::from_secs(15 * 60)).await;
+                        Ok(())
+                    } else {
+                        Err(e)
+                    }
                 }
             }
+        } else {
+            // If tweet_mode is false, just save to memory without tweeting
+            match MemoryStore::add_to_memory(
+                &mut self.memory,
+                &response,
+                &selected_agent.prompt,
+                None,
+            ) {
+                Ok(_) => println!("Response saved to memory (tweet_mode disabled)."),
+                Err(e) => eprintln!("Failed to save response to memory: {}", e),
+            }
+            Ok(())
         }
     }
 
@@ -257,7 +272,7 @@ impl Runtime {
         if self.memory.next_tweet.is_none() {
             self.schedule_next_tweet();
         }
-    
+        
         // If in debug mode, send a tweet immediately
         if self.memory.debug_mode {
             if let Err(e) = self.run().await {
