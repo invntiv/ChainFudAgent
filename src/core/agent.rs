@@ -2,7 +2,7 @@ use rig::agent::Agent as RigAgent;
 use rig::providers::anthropic::completion::CompletionModel;
 use rig::providers::anthropic::{self, CLAUDE_3_HAIKU};
 use rig::completion::Prompt;
-use rand::{self, Rng};
+use rand::{self};
 use serde_json::json;
 
 use std::{
@@ -10,10 +10,7 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 }; 
 
-use teloxide::{
-    prelude::*,
-    types::{Message, Update},
-};
+use teloxide::prelude::*;
 
 pub struct Agent {
     agent: RigAgent<CompletionModel>,
@@ -30,7 +27,7 @@ pub enum ResponseDecision {
 impl Agent {
     pub fn new(anthropic_api_key: &str, prompt: &str) -> Self {
         let client = anthropic::ClientBuilder::new(anthropic_api_key).build();
-        let mut rng = rand::thread_rng();
+        let rng = rand::thread_rng();
         let temperature = 0.9; // Higher temperature for more variety
 
         let agent = client

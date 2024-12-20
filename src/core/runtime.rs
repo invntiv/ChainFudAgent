@@ -2,8 +2,6 @@ use chrono::{DateTime, Utc};
 use rand::Rng;
 use std::collections::HashSet;
 use tokio::time::{sleep, Duration};
-use twitter_v2::id::NumericId;
-use crate::character::{CharacterConfig, InstructionBuilder};
     
 use crate::{
     core::agent::{Agent, ResponseDecision},
