@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use anyhow::Result;
 use reqwest::header::{HeaderMap, HeaderValue};
+use crate::core::agent::Agent;  // Add this import
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct TokenResponse {
@@ -373,5 +374,184 @@ impl SolanaTracker {
         } else {
             format!("{}\n\n{}\n\n{}", intro, reason, closing)
         }
+    }
+
+    pub fn generate_generic_fud(&self) -> String {
+        use rand::Rng;
+        let mut rng = rand::thread_rng();
+        
+        let generic_intros = [
+            "another day another scam... ",
+            "just found the next rugpull lmao ",
+            "crypto npc's be like ",
+            "solana devs never learn do they ",
+            "anon dev starter pack: ",
+            "hey guys i found this 'gem' ",
+            "your favorite influencer is about to shill ",
+            "ser i think we found the bottom ",
+            "breaking: local degen loses everything on ",
+        ];
+
+        let fud_reasons = [
+            "dev wallet holds 99.9% of supply (trust me bro)",
+            "hawk tuah team behind this",
+            "dev is jewish fading",
+            "website looks like it was made by a retarded 5-year-old",
+            "telegram admin can't spell for shit",
+            "my wife's boyfriend says it's a rugpull",
+            "chart looks like the titanic's final moments",
+            "devs are probably just three raccoons in a trenchcoat",
+            "obvious scam",
+            "federal honeypot",
+            "this one is just clearly ngmi and if you buy it you deserve to be poor",
+            "smart contract security looks like swiss cheese",
+            "marketing strategy is just paying nigerians $1 to spam rocket emojis",
+            "good coin for a 10% gain (waste of time)",
+            "just put the fries in the bag you'd make more money that way",
+            "reporting dev to the sec"
+        ];
+
+        let generic_closings = [
+            "ngmi",
+            "have fun staying poor",
+            "this is financial advice",
+            "not sorry",
+            "do better anon",
+            "crypto is dead",
+            "why are we still here",
+            "touch grass",
+            "stick to farming airdrops",
+            "sir this is a wendy's"
+        ];
+
+        // Select random components
+        let intro = generic_intros[rng.gen_range(0..generic_intros.len())];
+        let reason = fud_reasons[rng.gen_range(0..fud_reasons.len())];
+        let closing = generic_closings[rng.gen_range(0..generic_closings.len())];
+
+        // Format them together
+        // Using lowercase throughout to match the style and adding some spacing
+        format!(
+            "{}\n\n{}\n\n{}", 
+            intro.to_lowercase().trim(),
+            reason.to_lowercase().trim(),
+            closing.to_lowercase().trim()
+        )
+    }
+
+    pub fn get_fud_components(&self) -> (String, String, String) {
+        use rand::Rng;
+        let mut rng = rand::thread_rng();
+        
+        let generic_intros = [
+            "another day another scam...",
+            "just found the next rugpull lmao",
+            "crypto npc's be like",
+            "solana devs never learn do they",
+            "anon dev starter pack:",
+            "hey guys i found this 'gem'",
+            "your favorite influencer is about to shill",
+            "ser i think we found the bottom",
+            "breaking: local degen loses everything on",
+            "just watched a youtuber explain why",
+            "telegram group admin swears",
+            "my technical analysis shows",
+            "sources familiar with the matter say",
+            "trust me bro update:",
+            "weekly rugpull report:"
+        ];
+
+        let fud_reasons = [
+            "dev wallet holds 99.9% of supply (trust me bro)",
+            "hawk tuah team behind this",
+            "dev is jewish fading",
+            "website looks like it was made by a retarded 5-year-old",
+            "telegram admin can't spell for shit",
+            "my wife's boyfriend says it's a rugpull",
+            "chart looks like the titanic's final moments",
+            "devs are probably just three raccoons in a trenchcoat",
+            "obvious scam",
+            "federal honeypot",
+            "this one is just clearly ngmi and if you buy it you deserve to be poor",
+            "smart contract security looks like swiss cheese",
+            "marketing strategy is just paying nigerians $1 to spam rocket emojis",
+            "good coin for a 10% gain (waste of time)",
+            "just put the fries in the bag you'd make more money that way",
+            "reporting dev to the sec"
+        ];
+
+        let generic_closings = [
+            "ngmi",
+            "have fun staying poor",
+            "this is financial advice",
+            "not sorry",
+            "do better anon",
+            "crypto is dead",
+            "why are we still here",
+            "touch grass",
+            "stick to farming airdrops",
+            "sir this is a wendy's",
+            "back to mcdonalds",
+            "delete your wallet",
+            "probably nothing",
+            "wagmi (we are gonna miss income)",
+            "certified shitcoin moment"
+        ];
+
+        // Select random components
+        let intro = generic_intros[rng.gen_range(0..generic_intros.len())];
+        let reason = fud_reasons[rng.gen_range(0..fud_reasons.len())];
+        let closing = generic_closings[rng.gen_range(0..generic_closings.len())];
+
+        (
+            intro.to_string(),
+            reason.to_string(),
+            closing.to_string()
+        )
+    }
+
+    // This is a helper method to add emojis to the final response
+    fn add_emojis(response: String) -> String {
+        use rand::Rng;
+        let mut rng = rand::thread_rng();
+        
+        let emoji_sets = [
+            "💀",
+            "🤡",
+            "🚮",
+            "🗑️",
+            "⚰️",
+            "🤮",
+            "🚨",
+            "⚠️",
+            "🤢",
+            "💩",
+        ];
+
+        // Add 1-2 random emojis
+        let num_emojis = rng.gen_range(1..=2);
+        let mut final_response = response;
+        
+        for _ in 0..num_emojis {
+            let emoji = emoji_sets[rng.gen_range(0..emoji_sets.len())];
+            if rng.gen_bool(0.5) {
+                final_response = format!("{} {}", emoji, final_response);
+            } else {
+                final_response = format!("{} {}", final_response, emoji);
+            }
+        }
+
+        final_response
+    }
+
+    pub async fn generate_generic_fud_with_agent(&self, agent: &Agent) -> Result<String, anyhow::Error> {
+        // Get random components
+        let (intro, reason, closing) = self.get_fud_components();
+        
+        // Generate AI response using the components
+        let response = agent.generate_generic_fud(&intro, &reason, &closing).await?;
+        
+        // Add emojis to the final response
+        Ok(Self::add_emojis(response))
     }
 }

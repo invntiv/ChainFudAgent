@@ -450,15 +450,14 @@ impl Runtime {
         if self.agents.is_empty() {
             return Err(anyhow::anyhow!("No agents available"));
         }
-
-        // Check if we should process notifications - moved logging here
+    
         if !self.should_check_notifications().await {
             return Ok(());
         }
-
+    
         println!("Checking notifications...");
         let user_id = self.ensure_user_id().await?;
-
+    
         match self.twitter.get_notifications(user_id).await {
             Ok(notifications) => {
                 println!("Found {} total notifications", notifications.len());
@@ -474,7 +473,7 @@ impl Runtime {
                     .collect();
                 
                 println!("Processing {} unresponded notifications", unresponded_notifications.len());
-                // Randomly select up to 2 notifications to process
+                
                 let mut rng = rand::thread_rng();
                 let notifications_to_process: Vec<_> = if unresponded_notifications.len() > 2 {
                     use rand::seq::SliceRandom;
@@ -485,67 +484,66 @@ impl Runtime {
                 } else {
                     unresponded_notifications
                 };
-
+    
                 println!("Processing {} notifications", notifications_to_process.len());
                 
                 for tweet in notifications_to_process {
                     println!("Processing tweet: {}", tweet.text);
                     let tweet_id = tweet.id.to_string();
+                    let selected_agent = &self.agents[0];
                     
-                    if let Some(ticker) = Self::extract_ticker_symbol(&tweet.text) {
+                    let fud_response = if let Some(ticker) = Self::extract_ticker_symbol(&tweet.text) {
                         println!("Found ticker in tweet: {}", ticker);
-                        let selected_agent = &self.agents[0];
                         
                         let tokens = self.solana_tracker.get_top_tokens(30).await?;
                         println!("Got {} tokens from tracker", tokens.len());
                         
-                        let token_info = if let Some(token) = SolanaTracker::find_token_by_symbol(&tokens, &ticker) {
+                        if let Some(token) = SolanaTracker::find_token_by_symbol(&tokens, &ticker) {
                             println!(
                                 "Found token {} with liquidity ${:.2}", 
                                 token.token.symbol,
                                 token.pools.first().map(|p| p.liquidity.usd).unwrap_or(0.0)
                             );
-                            self.solana_tracker.format_token_summary(token)
+                            let token_info = self.solana_tracker.format_token_summary(token);
+                            selected_agent.generate_editorialized_fud(&token_info).await?
                         } else {
-                            println!("No token found for ticker {}", ticker);
-                            format!("Token: ${}", ticker)
-                        };
-
-                        println!("Generated token info: {}", token_info);
-
-                        let fud_response = selected_agent.generate_editorialized_fud(&token_info).await?;
-                        println!("Generated FUD response: {}", fud_response);
-
-                        if let Err(e) = MemoryStore::add_reply_to_memory(
-                            &mut self.memory,
-                            &fud_response,
-                            &selected_agent.prompt,
-                            Some(tweet_id.clone()),
-                            tweet.id.to_string(),
-                        ) {
-                            eprintln!("Failed to save response to memory: {}", e);
-                        }
-
-                        if self.memory.tweet_mode {
-                            println!("Tweet mode is enabled, posting reply...");
-                            match self.twitter.reply_to_tweet(&tweet_id, fud_response).await {
-                                Ok(_) => {
-                                    println!("Successfully replied to tweet {}", tweet_id);
-                                    sleep(Duration::from_secs(30)).await;
-                                }
-                                Err(e) => {
-                                    println!("Failed to reply to tweet: {}", e);
-                                    if e.to_string().contains("429") {
-                                        println!("Rate limit hit, stopping notification processing");
-                                        break;
-                                    }
-                                }
-                            }
-                        } else {
-                            println!("Tweet mode is disabled, skipping reply");
+                            println!("No token found for ticker {}, using AI-generated generic FUD", ticker);
+                            self.solana_tracker.generate_generic_fud_with_agent(selected_agent).await?
                         }
                     } else {
-                        println!("No ticker found in tweet: {}", tweet.text);
+                        println!("No ticker found in tweet, using AI-generated generic FUD");
+                        self.solana_tracker.generate_generic_fud_with_agent(selected_agent).await?
+                    };
+    
+                    println!("Generated FUD response: {}", fud_response);
+    
+                    if let Err(e) = MemoryStore::add_reply_to_memory(
+                        &mut self.memory,
+                        &fud_response,
+                        &selected_agent.prompt,
+                        Some(tweet_id.clone()),
+                        tweet.id.to_string(),
+                    ) {
+                        eprintln!("Failed to save response to memory: {}", e);
+                    }
+    
+                    if self.memory.tweet_mode {
+                        println!("Tweet mode is enabled, posting reply...");
+                        match self.twitter.reply_to_tweet(&tweet_id, fud_response).await {
+                            Ok(_) => {
+                                println!("Successfully replied to tweet {}", tweet_id);
+                                sleep(Duration::from_secs(30)).await;
+                            }
+                            Err(e) => {
+                                println!("Failed to reply to tweet: {}", e);
+                                if e.to_string().contains("429") {
+                                    println!("Rate limit hit, stopping notification processing");
+                                    break;
+                                }
+                            }
+                        }
+                    } else {
+                        println!("Tweet mode is disabled, skipping reply");
                     }
                 }
                 

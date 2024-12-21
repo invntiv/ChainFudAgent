@@ -97,6 +97,32 @@ impl Agent {
         Ok(response.trim().to_string())
     }
 
+    pub async fn generate_generic_fud(&self, intro: &str, reason: &str, closing: &str) -> Result<String, anyhow::Error> {
+        let prompt = format!(
+            "{}\n\nTask: Generate a toxic, cynical comment incorporating these elements:\n\
+            Intro: {}\n\
+            FUD Reason: {}\n\
+            Closing: {}\n\n\
+            Requirements:\n\
+            - Be extremely sarcastic and cynical\n\
+            - Incorporate the provided intro, reason, and closing creatively\n\
+            - Don't include a ticker
+            - Stay under 280 characters\n\
+            - Use all lowercase except for token symbols\n\
+            - Be creative with metaphors about scams, rugpulls, or dev behavior\n\
+            - Avoid hashtags\n\
+            - No emojis (they will be added later)\n\
+            Write ONLY the tweet text with no additional commentary:",
+            self.prompt,
+            intro,
+            reason,
+            closing
+        );
+
+        let response = self.agent.prompt(&prompt).await?;
+        Ok(response.trim().to_string())
+    }
+
     pub async fn generate_editorialized_fud(&self, token_info: &str) -> Result<String, anyhow::Error> {
         let prompt = format!(
             "{}\n\nTask: Generate a toxic, cynical commentary about this token:\n{}\n\
