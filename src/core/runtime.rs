@@ -64,6 +64,27 @@ impl Runtime {
         }
     }
 
+    fn get_fud_examples() -> Vec<&'static str> {
+        vec![
+             "Dev wallet holds 99.9% of supply (trust me bro)",
+            "Hawk Tuah team behind this.",
+            "Dev is Jewish. Fading.",
+            "Website looks like it was made by a retarded 5-year-old",
+            "Telegram admin can't spell for shit.",
+            "My wife's boyfriend says it's a rugpull",
+            "Chart looks like the Titanic's final moments",
+            "Devs are probably just three raccoons in a trenchcoat",
+            "Obvious scam.",
+            "Federal Honeypot.",
+            "This one is just clearly NGMI and if you buy it you deserve to be poor.",
+            "Smart contract security looks like Swiss cheese",
+            "Marketing strategy is just paying Nigerians $1 to spam rocket emojis",
+            "Good coin for a 10% gain (waste of time).",
+            "Just put the fries in the bag, you'd make more money that way.",
+            "Reporting dev to the SEC."
+        ]
+    }
+
     pub fn add_agent(&mut self, prompt: &str) {
         let agent = Agent::new(&self.anthropic_api_key, prompt);
         self.agents.push(agent);
