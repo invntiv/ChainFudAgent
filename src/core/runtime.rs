@@ -77,7 +77,7 @@ impl Runtime {
     }
 
     pub async fn run(&mut self) -> Result<(), anyhow::Error> {
-        // // First get and show trending summary
+        //FUD First get and show trending summary
         let summary = self.get_trending_solana_summary().await?;
         println!("Solana trending summary: {}", summary);
     
