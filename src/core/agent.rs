@@ -99,25 +99,44 @@ impl Agent {
 
     pub async fn generate_editorialized_fud(&self, token_info: &str) -> Result<String, anyhow::Error> {
         let prompt = format!(
-            "{}\n\nTask: Generate a toxic, cynical commentary about this crypto token:\n{}\n\
+            "{}\n\nTask: Generate a toxic, cynical commentary about this token:\n{}\n\
             Requirements:\n\
             - Be extremely sarcastic and cynical\n\
-            - Always prefix token symbols with $ (e.g., $GIGA)\n\
-            - Include specific numbers from the token info\n\
+            - Always use proper token symbol from the info\n\
+            - Use ONLY the actual numbers provided in the token info (liquidity, market cap)\n\
+            - Don't mention the price\n\
+            - Use information from SOLANA chain. Do not mention BNB tokens.
+            - If no numbers are available, focus on qualitative criticism instead\n\
+            - Never make up specific numbers - if you need a number, use vague terms like 'countless' or 'zero'\n\
             - Be creative with metaphors about scams, rugpulls, or dev behavior\n\
             - Stay under 280 characters\n\
-            - Use all lowercase\n\
+            - Use all lowercase except for token symbols\n\
             - Avoid hashtags\n\
-            - Make it personal and specific to this token\n\
-            Example style: '$GIGA - a true marvel of crypto engineering. $5M liquidity pool? more like a kiddie wading pool. dev prly dumped all their bags and is sipping mojitos in the bahamas'\n\
+            - Here are some additional examples of FUD:\n\
+                'Dev wallet holds 99.9% of supply (trust me bro)'\n\
+                'Hawk Tuah team behind this.'\n\
+                'Dev is Jewish. Fading.'\n\
+                'Website looks like it was made by a retarded 5-year-old'\n\
+                Telegram admin can't spell for shit.'\n\
+                'My wife's boyfriend says it's a rugpull'\n\
+                'Chart looks like the Titanic's final moments'\n\
+                'Devs are probably just three raccoons in a trenchcoat'\n\
+                'Obvious scam.'\n\
+                'Federal Honeypot.'\n\
+                'This one is just clearly NGMI and if you buy it you deserve to be poor.'\n\
+                'Smart contract security looks like Swiss cheese'\n\
+                'Marketing strategy is just paying Nigerians $1 to spam rocket emojis'\n\
+                'Good coin for a 10% gain (waste of time).'\n\
+                'Just put the fries in the bag, you'd make more money that way.'\n\
+                'Reporting dev to the SEC.'\n\
             Write ONLY the tweet text with no additional commentary:",
             self.prompt,
-            token_info
+            token_info,
         );
 
         let response = self.agent.prompt(&prompt).await?;
         Ok(response.trim().to_string())
-    }
+    }   
 
     pub async fn generate_image(&self) -> Result<String, anyhow::Error> {
         let client = reqwest::Client::builder().build()?;

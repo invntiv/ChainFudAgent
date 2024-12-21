@@ -66,7 +66,7 @@ impl Runtime {
 
     fn get_fud_examples() -> Vec<&'static str> {
         vec![
-             "Dev wallet holds 99.9% of supply (trust me bro)",
+            "Dev wallet holds 99.9% of supply (trust me bro)",
             "Hawk Tuah team behind this.",
             "Dev is Jewish. Fading.",
             "Website looks like it was made by a retarded 5-year-old",
@@ -104,7 +104,16 @@ impl Runtime {
     //  Method to check if it's time for scheduled actions
     async fn should_run_scheduled_action(&self, minutes: &[u32]) -> bool {
         let now = Utc::now();
-        minutes.contains(&now.minute()) && now.second() == 0
+        let is_minute_mark = minutes.contains(&now.minute()) && now.second() == 0;
+        // Only log when we're at a minute we care about
+        if now.second() == 0 && minutes.contains(&now.minute()) {
+            println!("Scheduled check at {:02}:{:02} - {}", 
+                now.hour(), 
+                now.minute(),
+                if is_minute_mark { "Running" } else { "Waiting" }
+            );
+        }
+        is_minute_mark
     }
 
     pub async fn run(&mut self) -> Result<(), anyhow::Error> {
@@ -214,19 +223,10 @@ impl Runtime {
 
     async fn should_check_notifications(&self) -> bool {
         match self.last_notification_check {
-            None => {
-                println!("First notification check");
-                true
-            },
+            None => true,
             Some(last_check) => {
                 let duration = Utc::now().signed_duration_since(last_check);
-                let should_check = duration.num_minutes() >= 5;
-                println!(
-                    "Time since last notification check: {} minutes. Should check: {}", 
-                    duration.num_minutes(),
-                    should_check
-                );
-                should_check
+                duration.num_minutes() >= 5
             }
         }
     }
@@ -334,13 +334,13 @@ impl Runtime {
 
     pub async fn run_periodically(&mut self) -> Result<(), anyhow::Error> {
         println!("Starting periodic run loop...");
+        println!("Character type: {}", self.character_config.name);
         
         loop {
             let now = Utc::now();
             
             // For FUD character specific timing
             if self.character_config.name == "fud" {
-                // Generate FUD every quarter hour (00, 15, 30, 45)
                 if self.should_run_scheduled_action(&[0, 15, 30, 45]).await {
                     if let Err(e) = self.generate_and_post_fud().await {
                         eprintln!("Error generating FUD: {}", e);
@@ -354,17 +354,17 @@ impl Runtime {
                     }
                 }   
             } else {
-                // Original behavior for non-FUD characters
-                if self.wait_until_next_tweet().await {
-                    if let Err(e) = self.run().await {
-                        eprintln!("Error running tweet process: {}", e);
-                    }
-                    self.schedule_next_tweet();
-                }
+                // Original behavior for non-FUD characters...
             }
 
-            // Sleep for 1 second before next check
-            sleep(Duration::from_secs(1)).await;
+            // Sleep until next second
+            let next_second = (now + chrono::Duration::seconds(1))
+                .with_nanosecond(0)
+                .unwrap();
+            let duration_until_next = next_second.signed_duration_since(now);
+            if duration_until_next.num_milliseconds() > 0 {
+                sleep(Duration::from_millis(duration_until_next.num_milliseconds() as u64)).await;
+            }
         }
     }
 
@@ -415,26 +415,31 @@ impl Runtime {
     }
 
     async fn generate_and_post_fud(&mut self) -> Result<(), anyhow::Error> {
-        println!("Generating FUD at {}:{:02}", Utc::now().hour(), Utc::now().minute());
-        let tokens = self.solana_tracker.get_top_tokens(30).await?;  // Updated to 30 tokens
+        let now = Utc::now();
+
+        if !self.should_allow_tweet().await {
+            println!("Skipping scheduled post - rate limit cooldown");
+            return Ok(());
+        }
+
+        let tokens = self.solana_tracker.get_top_tokens(30).await?;
         let mut rng = rand::thread_rng();
         
         if let Some(random_token) = tokens.get(rng.gen_range(0..tokens.len())) {
             let token_summary = self.solana_tracker.format_token_summary(random_token);
-            println!("Token Summary: {}", token_summary);
-
             let selected_agent = &self.agents[0];
             let fud = selected_agent.generate_editorialized_fud(&token_summary).await?;
-
-            println!("Generated FUD: {}", fud);
             
             if self.memory.tweet_mode {
                 match self.twitter.tweet(fud.clone()).await {
-                    Ok(_) => println!("Successfully posted FUD tweet"),
-                    Err(e) => println!("Failed to post FUD tweet: {}", e),
+                    Ok(_) => {
+                        println!("Posted scheduled FUD at {:02}:{:02}", now.hour(), now.minute());
+                        self.last_tweet_time = Some(now);
+                    },
+                    Err(e) => eprintln!("Failed to post FUD tweet: {}", e),
                 }
             } else {
-                println!("Tweet mode disabled, skipping tweet");
+                println!("Tweet mode disabled, skipping scheduled post");
             }
         }
         
@@ -442,41 +447,33 @@ impl Runtime {
     }
 
     async fn handle_notifications_fud(&mut self) -> Result<(), anyhow::Error> {
-        println!("Starting FUD notification check...");
-        
         if self.agents.is_empty() {
-            println!("No agents available");
             return Err(anyhow::anyhow!("No agents available"));
         }
 
-        // Check if we should process notifications
+        // Check if we should process notifications - moved logging here
         if !self.should_check_notifications().await {
-            println!("Skipping notification check - too soon since last check");
             return Ok(());
         }
 
-        println!("Getting user ID...");
+        println!("Checking notifications...");
         let user_id = self.ensure_user_id().await?;
-        println!("User ID: {}", user_id);
-        
+
         match self.twitter.get_notifications(user_id).await {
             Ok(notifications) => {
-                println!("Got {} notifications", notifications.len());
+                println!("Found {} total notifications", notifications.len());
                 self.last_notification_check = Some(Utc::now());
                 
-                // Instead of just getting new notifications, get all unresponded ones
                 let unresponded_notifications: Vec<_> = notifications
                     .into_iter()
                     .filter(|tweet| {
-                        // Check if we've already responded to this tweet
                         !self.memory.tweets.iter().any(|t| 
                             t.reply_to.as_ref().map_or(false, |reply_id| reply_id == &tweet.id.to_string())
                         )
                     })
                     .collect();
                 
-                println!("Found {} unresponded notifications", unresponded_notifications.len());
-
+                println!("Processing {} unresponded notifications", unresponded_notifications.len());
                 // Randomly select up to 2 notifications to process
                 let mut rng = rand::thread_rng();
                 let notifications_to_process: Vec<_> = if unresponded_notifications.len() > 2 {
@@ -495,17 +492,14 @@ impl Runtime {
                     println!("Processing tweet: {}", tweet.text);
                     let tweet_id = tweet.id.to_string();
                     
-                    // Check for $ symbol followed by uppercase letters with improved extraction
                     if let Some(ticker) = Self::extract_ticker_symbol(&tweet.text) {
-                        let formatted_ticker = Self::format_ticker_for_response(&ticker);
-                        println!("Found ticker in tweet: {}", formatted_ticker);
+                        println!("Found ticker in tweet: {}", ticker);
                         let selected_agent = &self.agents[0];
                         
-                        // Get token data for the mentioned ticker if available
                         let tokens = self.solana_tracker.get_top_tokens(30).await?;
                         println!("Got {} tokens from tracker", tokens.len());
                         
-                        let token_info = if let Some(token) = SolanaTracker::find_token_by_symbol(&tokens, &formatted_ticker) {
+                        let token_info = if let Some(token) = SolanaTracker::find_token_by_symbol(&tokens, &ticker) {
                             println!(
                                 "Found token {} with liquidity ${:.2}", 
                                 token.token.symbol,
@@ -513,31 +507,15 @@ impl Runtime {
                             );
                             self.solana_tracker.format_token_summary(token)
                         } else {
-                            println!("No token found for ticker {}", formatted_ticker);
-                            format!("Token: ${}", formatted_ticker)
+                            println!("No token found for ticker {}", ticker);
+                            format!("Token: ${}", ticker)
                         };
 
                         println!("Generated token info: {}", token_info);
-                        let prompt = format!(
-                            "{}\n\nTask: Generate a toxic, cynical commentary about this token:\n{}\n\
-                            Requirements:\n\
-                            - Be extremely sarcastic and cynical\n\
-                            - Always use ${} when referring to the token\n\
-                            - Include specific numbers from the token info\n\
-                            - Be creative with metaphors about scams, rugpulls, or dev behavior\n\
-                            - Stay under 280 characters\n\
-                            - Use all lowercase except for the token symbol\n\
-                            - Avoid hashtags\n\
-                            - Make it personal and specific to this token",
-                            selected_agent.prompt,
-                            token_info,
-                            formatted_ticker
-                        );
-                        // Generate FUD response using the token info
+
                         let fud_response = selected_agent.generate_editorialized_fud(&token_info).await?;
                         println!("Generated FUD response: {}", fud_response);
 
-                        // Save to memory as a reply
                         if let Err(e) = MemoryStore::add_reply_to_memory(
                             &mut self.memory,
                             &fud_response,
