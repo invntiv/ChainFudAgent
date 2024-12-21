@@ -97,6 +97,28 @@ impl Agent {
         Ok(response.trim().to_string())
     }
 
+    pub async fn generate_editorialized_fud(&self, token_info: &str) -> Result<String, anyhow::Error> {
+        let prompt = format!(
+            "{}\n\nTask: Generate a toxic, cynical commentary about this crypto token:\n{}\n\
+            Requirements:\n\
+            - Be extremely sarcastic and cynical\n\
+            - Always prefix token symbols with $ (e.g., $GIGA)\n\
+            - Include specific numbers from the token info\n\
+            - Be creative with metaphors about scams, rugpulls, or dev behavior\n\
+            - Stay under 280 characters\n\
+            - Use all lowercase\n\
+            - Avoid hashtags\n\
+            - Make it personal and specific to this token\n\
+            Example style: '$GIGA - a true marvel of crypto engineering. $5M liquidity pool? more like a kiddie wading pool. dev prly dumped all their bags and is sipping mojitos in the bahamas'\n\
+            Write ONLY the tweet text with no additional commentary:",
+            self.prompt,
+            token_info
+        );
+
+        let response = self.agent.prompt(&prompt).await?;
+        Ok(response.trim().to_string())
+    }
+
     pub async fn generate_image(&self) -> Result<String, anyhow::Error> {
         let client = reqwest::Client::builder().build()?;
         dotenv::dotenv().ok();

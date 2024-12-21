@@ -80,6 +80,13 @@ impl Price {
     }
 }
 
+impl Pool {
+    pub fn get_liquidity_usd(&self) -> f64 {
+        // Liquidity is stored directly in the pool.liquidity.usd field
+        self.liquidity.usd
+    }
+}
+
 impl SolanaTracker {
     pub fn new(api_key: &str) -> Self {
         SolanaTracker {
@@ -150,19 +157,89 @@ impl SolanaTracker {
         self.get_trending_tokens("24h").await
     }
 
+    pub fn find_token_by_symbol<'a>(tokens: &'a [TokenResponse], symbol: &str) -> Option<&'a TokenResponse> {
+        // Get all tokens matching the symbol
+        let matching_tokens: Vec<&TokenResponse> = tokens
+            .iter()
+            .filter(|t| t.token.symbol.eq_ignore_ascii_case(symbol))
+            .collect();
+
+        // If no matches, return None
+        if matching_tokens.is_empty() {
+            return None;
+        }
+
+        // If only one match, return it
+        if matching_tokens.len() == 1 {
+            return Some(matching_tokens[0]);
+        }
+
+        // Multiple matches - sort by liquidity and return the highest
+        matching_tokens
+            .into_iter()
+            .max_by(|a, b| {
+                let a_liquidity = a.pools.first()
+                    .map(|p| p.liquidity.usd)
+                    .unwrap_or(0.0);
+                let b_liquidity = b.pools.first()
+                    .map(|p| p.liquidity.usd)
+                    .unwrap_or(0.0);
+                a_liquidity.partial_cmp(&b_liquidity).unwrap_or(std::cmp::Ordering::Equal)
+            })
+    }
+
+    pub fn format_token_summary(&self, token: &TokenResponse) -> String {
+        let pool = token.pools.first().unwrap();
+
+        // Market cap
+        let mcap = pool.price.calculate_market_cap();
+        let mcap_str = if mcap > 0.0 {
+            if mcap >= 1_000_000_000.0 {
+                format!("${:.1}B", mcap / 1_000_000_000.0)
+            } else if mcap >= 1_000_000.0 {
+                format!("${:.1}M", mcap / 1_000_000.0)
+            } else {
+                format!("${:.1}K", mcap / 1_000.0)
+            }
+        } else {
+            println!(
+                "Warning: Derived marketCap is zero for token: {}",
+                token.token.symbol  // Fixed variable reference
+            );
+            "N/A".to_string()
+        };
+
+        let liquidity = pool.get_liquidity_usd();
+        let liquidity_formatted = if liquidity >= 1_000_000.0 {
+            format!("${:.1}M", liquidity / 1_000_000.0)
+        } else if liquidity >= 1_000.0 {
+            format!("${:.1}K", liquidity / 1_000.0)
+        } else {
+            format!("${:.2}", liquidity)
+        };
+
+        let price = pool.price.usd;
+        let price_formatted = if price >= 1.0 {
+            format!("${:.2}", price)
+        } else {
+            format!("${:.8}", price)
+        };
+
+        format!(
+            "Token: ${}\nMarket cap: {}\nPrice: {}\nLiquidity: {}\n24h Change: {}%",
+            token.token.symbol,
+            mcap_str,  // Added comma here
+            price_formatted,
+            liquidity_formatted,
+            pool.events.price_change_percentage_24h.map_or("N/A".to_string(), |c| format!("{:.1}", c))
+        )
+    }
 
     pub fn format_tokens_summary(&self, tokens: &[TokenResponse], limit: usize) -> String {
         let tokens = &tokens[..tokens.len().min(limit)];
         let mut summary = String::from("🚀💩 Worst Trending Shitcoins on Solana:\n\n");
     
         for (i, token_response) in tokens.iter().enumerate() {
-            if i == 0 {
-                println!(
-                    "Debugging API Response: {:?}",
-                    token_response
-                );
-            }
-
             if let Some(pool) = token_response.pools.first() {
                 // Price
                 let price_usd = pool.price.usd;
@@ -221,7 +298,7 @@ impl SolanaTracker {
         summary.push_str("Data from SolanaTracker 📊");
         summary
     }
-    
+
 
     pub async fn get_top_tokens(&self, limit: usize) -> Result<Vec<TokenResponse>> {
         let tokens = self.get_daily_trending().await?;
