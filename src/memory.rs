@@ -105,6 +105,10 @@ impl MemoryStore {
         memory.debug_mode
     }
 
+    pub fn get_fud_mode(memory: &Memory) -> bool {
+        memory.fud_only
+    }
+
     // Set debug mode status
     pub fn set_debug_mode(memory: &mut Memory, debug: bool) -> io::Result<()> {
         memory.debug_mode = debug;

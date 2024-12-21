@@ -77,10 +77,10 @@ impl Runtime {
     }
 
     pub async fn run(&mut self) -> Result<(), anyhow::Error> {
-
+        // // First get and show trending summary
         let summary = self.get_trending_solana_summary().await?;
         println!("Solana trending summary: {}", summary);
-
+    
         if self.agents.is_empty() {
             return Err(anyhow::anyhow!("No agents available")).map_err(Into::into);
         }
@@ -93,13 +93,29 @@ impl Runtime {
     
         let mut rng = rand::thread_rng();
         let selected_agent = &self.agents[rng.gen_range(0..self.agents.len())];
-    
-        let response = selected_agent
-            .generate_post()
-            .await
-            .map_err(|e| anyhow::anyhow!("Failed to generate post: {}", e))?;
-    
-        println!("Generated tweet: {}", response);
+        
+        // This is where we decide what to tweet
+        let response = if rng.gen_bool(0.5) {
+            // Use the agent's normal post
+            selected_agent
+                .generate_post()
+                .await
+                .map_err(|e| anyhow::anyhow!("Failed to generate post: {}", e))?
+        } else {
+            // Get tokens and generate FUD
+            let tokens = self.solana_tracker.get_top_tokens(20).await?;
+            let random_token = tokens.get(rng.gen_range(0..tokens.len()))
+                .ok_or_else(|| anyhow::anyhow!("No tokens available"))?;
+            self.solana_tracker.generate_fud(random_token)
+        };
+        
+        let tokens = self.solana_tracker.get_top_tokens(20).await?;
+        let random_token = tokens
+            .get(rng.gen_range(0..tokens.len()))
+            .ok_or_else(|| anyhow::anyhow!("No tokens available"))?;
+        
+        let fud = self.solana_tracker.generate_fud(random_token);
+        println!("{}", fud);
     
         // Only proceed with tweeting if tweet_mode is true
         if self.memory.tweet_mode {

@@ -25,7 +25,8 @@ pub struct Memory {
     pub next_id: u64,
     pub next_tweet: Option<DateTime<Utc>>,
     pub debug_mode: bool,
-    pub tweet_mode: bool
+    pub tweet_mode: bool,
+    pub fud_only: bool
 }
 
 #[derive(Serialize, Deserialize, Default)]

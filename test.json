@@ -1,0 +1,26 @@
+{"token":
+    {"name":"Pepe The King Prawn",
+    "symbol":"Prawn",
+    "mint":"6b7NtVRo6jDSUZ75qfhHgpy99XVkSu1kfoTFu2E3pump",
+    "uri":"https://ipfs.io/ipfs/QmW26jM73YS17dswBFwnKYGCJEWMecjWoHc4Q7bSyjok2C",
+    "decimals":6,
+    "hasFileMetaData":true,
+    "createdOn":"https://pump.fun",
+    "description":"Pepe The King Prawn – Trending Hard on TikTok! 🦐🔥\r\nThe sassiest meme character on the planet is taking over TikTok, and now he’s here to rule the crypto seas with $Prawn! Don’t just watch the trend—own it.\r\n\r\n🐾 Why Join the $Prawn Revolution?\r\n\r\nTikTok Viral: From memes to moonshots, Pepe’s going places—are you coming along?\r\nCommunity-Powered: The prawn army is growing fast. Join the movement before the tide rises! It’s simple prawn math, okay?\r\n\r\n💎 How to Ride the Wave\r\n1️⃣ Get in Early: The TikTok trend is exploding, and you’re just in time.\r\n2️⃣ Share t
+he Meme Love: Create, share, and laugh your way to the moon.\r\n3️⃣ HODL Like a King: Pepe rewards those who stay loyal.\r\n\r\n🚀 The Meme Coin of the Moment\r\nFrom TikTok trends to crypto charts, $PepePrawn is your ticket
+ to riding the viral wave. Don’t get left in the shallow end, okay?",
+ "image":"https://image.solanatracker.io/proxy?url=https%3A%2F%2Fipfs.io%2Fipfs%2FQmex2bwG2mwKoEFBaCaxjTHtiASUSR385m1BhCDLDTTkzX",
+ "showName":true},
+    "pools":[
+        {"liquidity":{
+            "quote":2505.478467584,"usd":485916.1892754856},
+            "price": {
+                "quote":0.00002241441843417073,
+                "usd":0.0043470853696304145},
+                "tokenSupply":999961787.486001,
+                "lpBurn":99,
+                "tokenAddress":"6b7NtVRo6jDSUZ75qfhHgpy99XVkSu1kfoTFu2E3pump",
+                "marketCap":{"quote":22413.561922892535,"usd":4346919.256569873},
+                "market":"raydium","quoteToken":"So11111111111111111111111111111111111111112",
+                "decimals":6,"security":{"freezeAuthority":null,"mintAuthority":null},
+                "deployer":"39azUYFWPz3VHgKCf3VChUwbpURdCHRxjWVowf5jUJjg","lastUpdated":1734740944908,"createdAt":1733364495629,"txns":{"sells":121018,"total":249132,"volume":117290925,"buys":128114},"poolId":"YGSV5UKCXz3WLAyfviB7oWHQRQbvm5ETtyFVPfystmh"}],"events":{"1m":{"priceChangePercentage":-0.7194962269038421},"5m":{"priceChangePercentage":-0.5921242946337623},"15m":{"priceChangePercentage":5.193991724950142},"30m":{"priceChangePercentage":3.71396396887435},"1h":{"priceChangePercentage":1.095405775072394},"2h":{"priceChangePercentage":41.61499546923702},"3h":{"priceChangePercentage":45.77634922164414},"4h":{"priceChangePercentage":42.92775854076526},"5h":{"priceChangePercentage":35.72435354915919},"6h":{"priceChangePercentage":41.90147963920351},"12h":{"priceChangePercentage":35.740571786986656},"24h":{"priceChangePercentage":-12.160361758961777}},"risk":{"rugged":false,"risks":[{"name":"No social media","description":"This token has no social media links","level":"warning","score":2000}],"score":2},"buysCount":2162,"sellsCount":2297}
