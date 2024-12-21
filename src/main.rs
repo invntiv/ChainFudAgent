@@ -6,6 +6,7 @@ use core::{instruction_builder::InstructionBuilder, runtime::Runtime};
 extern crate dotenv;
 pub mod models;
 pub mod character;
+use crate::models::CharacterConfig;  // Add this import at the top of main.rs
 
 use dotenv::dotenv;
 use std::env;
@@ -16,6 +17,10 @@ async fn main() -> Result<(), anyhow::Error> {
         eprintln!("Error loading .env file: {}", e);
     }
 
+    let character_config = CharacterConfig {
+            name: "fud".to_string(),
+        };
+
     let mut runtime = Runtime::new(
         &env::var("ANTHROPIC_API_KEY").expect("ANTHROPIC_API_KEY not set"),
         &env::var("TWITTER_CONSUMER_KEY").expect("TWITTER_CONSUMER_KEY not set"),
@@ -24,6 +29,7 @@ async fn main() -> Result<(), anyhow::Error> {
         &env::var("TWITTER_ACCESS_TOKEN_SECRET").expect("TWITTER_ACCESS_TOKEN_SECRET not set"),
         &env::var("TELEGRAM_BOT_TOKEN").expect("TELEGRAM_BOT_TOKEN not set"),
         &env::var("SOLANA_TRACKER_API_KEY").expect("SOLANA_TRACKER_API_KEY not set"),
+        character_config,
     );
 
     let mut instruction_builder = InstructionBuilder::new();

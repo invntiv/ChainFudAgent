@@ -33,3 +33,8 @@ pub struct Memory {
 pub struct ProcessedNotifications {
     pub tweet_ids: HashSet<String>,
 }
+
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
+pub struct CharacterConfig {
+    pub name: String,
+}

@@ -1,4 +1,4 @@
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Timelike, Utc};
 use rand::Rng;
 use std::collections::HashSet;
 use tokio::time::{sleep, Duration};
@@ -7,6 +7,7 @@ use crate::{
     core::agent::{Agent, ResponseDecision},
     memory::MemoryStore,
     models::Memory,
+    models::CharacterConfig,
     providers::telegram::Telegram,
     providers::twitter::Twitter,
     providers::solanatracker::SolanaTracker,
@@ -23,6 +24,7 @@ pub struct Runtime {
     last_notification_check: Option<DateTime<Utc>>,
     last_tweet_time: Option<DateTime<Utc>>,
     solana_tracker: SolanaTracker,
+    character_config: CharacterConfig,
 }
 
 impl Runtime {
@@ -34,6 +36,7 @@ impl Runtime {
         twitter_access_token_secret: &str,
         telegram_bot_token: &str,
         solana_tracker_api_key: &str,
+        character_config: CharacterConfig,
     ) -> Self {
         let twitter = Twitter::new(
             twitter_consumer_key,
@@ -57,6 +60,7 @@ impl Runtime {
             last_notification_check: None,
             last_tweet_time: None,
             solana_tracker,
+            character_config
         }
     }
 
@@ -74,6 +78,12 @@ impl Runtime {
                 duration.num_minutes() >= 5
             }
         }
+    }
+
+    //  Method to check if it's time for scheduled actions
+    async fn should_run_scheduled_action(&self, minutes: &[u32]) -> bool {
+        let now = Utc::now();
+        minutes.contains(&now.minute()) && now.second() == 0
     }
 
     pub async fn run(&mut self) -> Result<(), anyhow::Error> {
@@ -258,6 +268,74 @@ impl Runtime {
         }
     }
 
+    async fn handle_notifications_fud(&mut self) -> Result<(), anyhow::Error> {
+        if self.agents.is_empty() {
+            return Err(anyhow::anyhow!("No agents available"));
+        }
+
+        let user_id = self.ensure_user_id().await?;
+        
+        match self.twitter.get_notifications(user_id).await {
+            Ok(notifications) => {
+                self.last_notification_check = Some(Utc::now());
+                
+                let new_notifications: Vec<_> = notifications
+                    .into_iter()
+                    .filter(|tweet| !self.processed_tweets.contains(&tweet.id.to_string()))
+                    .collect();
+
+                for tweet in new_notifications {
+                    let tweet_id = tweet.id.to_string();
+                    
+                    // Check for $ symbol followed by uppercase letters
+                    if let Some(ticker) = Self::extract_ticker_symbol(&tweet.text) {
+                        let selected_agent = &self.agents[0];
+                        
+                        // Get author ID and handle the case where it might be None
+                        let author_reference = match tweet.author_id {
+                            Some(author_id) => format!("@{}", author_id),
+                            None => "anon".to_string()
+                        };
+                        
+                        let fud_response = format!("yo {} {} is definitely going to zero, straight up ponzi vibes", 
+                            author_reference,
+                            ticker
+                        );
+
+                        // Save to memory as a reply
+                        if let Err(e) = MemoryStore::add_reply_to_memory(
+                            &mut self.memory,
+                            &fud_response,
+                            &selected_agent.prompt,
+                            Some(tweet_id.clone()),
+                            tweet.id.to_string(),
+                        ) {
+                            eprintln!("Failed to save response to memory: {}", e);
+                        }
+
+                        if self.memory.tweet_mode {
+                            self.twitter.reply_to_tweet(&tweet_id, fud_response).await?;
+                        }
+                    }
+
+                    self.processed_tweets.insert(tweet_id);
+                    MemoryStore::save_processed_tweets(&self.processed_tweets)?;
+                }
+                
+                Ok(())
+            }
+            Err(e) => {
+                if e.to_string().contains("429") {
+                    println!("Rate limit hit for notifications, will retry in 15 minutes");
+                    self.last_notification_check = Some(Utc::now());
+                    Ok(())
+                } else {
+                    Err(e)
+                }
+            }
+        }
+    }
+
     fn schedule_next_tweet(&mut self) {
         let mut rng = rand::thread_rng();
         let delay_secs = rng.gen_range(5 * 60..15 * 60); 
@@ -293,39 +371,68 @@ impl Runtime {
     }
 
     pub async fn run_periodically(&mut self) -> Result<(), anyhow::Error> {
-        // Schedule next tweet if not already scheduled
-        if self.memory.next_tweet.is_none() {
-            self.schedule_next_tweet();
-        }
+        println!("Starting periodic run loop...");
         
-        // If in debug mode, send a tweet immediately
-        if self.memory.debug_mode {
-            if let Err(e) = self.run().await {
-                eprintln!("Error running tweet process in debug mode: {}", e);
-            }
-            // Schedule next tweet after debug tweet
-            self.schedule_next_tweet();
-        }
-    
         loop {
-            // Wait until it's time for the next tweet
-            if self.wait_until_next_tweet().await {
-                // Handle regular tweets
-                if let Err(e) = self.run().await {
-                    eprintln!("Error running tweet process: {}", e);
+            let now = Utc::now();
+            
+            // For FUD character specific timing
+            if self.character_config.name == "fud" {
+                // Check for trending summary times (HH:15 and HH:30)
+                if self.should_run_scheduled_action(&[15, 30]).await {
+                    println!("Running trending summary at {}:{:02}", now.hour(), now.minute());
+                    let summary = self.get_trending_solana_summary().await?;
+                    if self.memory.tweet_mode {
+                        self.twitter.tweet(summary).await?;
+                    }
                 }
-    
-                // Schedule the next tweet
-                self.schedule_next_tweet();
-    
-                // Handle notifications
-                if let Err(e) = self.handle_notifications().await {
-                    eprintln!("Error handling notifications: {}", e);
+
+                // Check for FUD generation times (HH:00 and HH:45)
+                if self.should_run_scheduled_action(&[0, 45]).await {
+                    println!("Generating FUD at {}:{:02}", now.hour(), now.minute());
+                    let tokens = self.solana_tracker.get_top_tokens(20).await?;
+                    let mut rng = rand::thread_rng();
+                    if let Some(random_token) = tokens.get(rng.gen_range(0..tokens.len())) {
+                        let fud = self.solana_tracker.generate_fud(random_token);
+                        if self.memory.tweet_mode {
+                            self.twitter.tweet(fud).await?;
+                        }
+                    }
+                }
+
+                // Handle notifications every 5 minutes
+                if self.should_check_notifications().await {
+                    if let Err(e) = self.handle_notifications_fud().await {
+                        eprintln!("Error handling FUD notifications: {}", e);
+                    }
+                }
+            } else {
+                // Original behavior for non-FUD characters
+                if self.wait_until_next_tweet().await {
+                    if let Err(e) = self.run().await {
+                        eprintln!("Error running tweet process: {}", e);
+                    }
+                    self.schedule_next_tweet();
                 }
             }
-    
-            // Small sleep to prevent tight loop
+
+            // Sleep for 1 second before next check
             sleep(Duration::from_secs(1)).await;
         }
     }
+
+        // Helper function to extract ticker symbols
+    fn extract_ticker_symbol(text: &str) -> Option<String> {
+        let words: Vec<&str> = text.split_whitespace().collect();
+        for word in words {
+            if word.starts_with('$') && word.len() > 1 {
+                let ticker = word[1..].to_string();
+                if ticker.chars().all(|c| c.is_ascii_uppercase() || c.is_ascii_digit()) {
+                    return Some(ticker);
+                }
+            }
+        }
+        None
+    }
 }
+
