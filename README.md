@@ -54,12 +54,13 @@ This project implements an AI-powered social media agent that autonomously engag
 - API Keys:
   - Anthropic Claude API access
   - Twitter API v2 credentials (OAuth 1.0a)
+  - SolanaTracker API
 
 ## Installation
 
 1. Clone the repository:
-   git clone https://github.com/chakaboommm/rina
-   cd rina
+   git clone https://github.com/invntiv/FudAIAgent
+   cd FudAIAgent
 
 2. Create a `.env` file with required credentials:
    ANTHROPIC_API_KEY=your_api_key
@@ -68,8 +69,9 @@ This project implements an AI-powered social media agent that autonomously engag
    TWITTER_ACCESS_TOKEN=your_token
    TWITTER_ACCESS_TOKEN_SECRET=your_token_secret
    CHARACTER_NAME=your_character_name
+   SOLANA_TRACKER_API_KEY=your_solanatracker_api_key
 
-3. Configure your character:
+4. Configure your character:
    - Create a new directory: `characters/{CHARACTER_NAME}/`
    - Add character definition in `character.json`
 
@@ -96,7 +98,7 @@ Characters are defined using a structured JSON format:
 ## Usage
 
 Run the agent:
-cargo run
+$env:CHARACTER_NAME="{character name}"; cargo run
 
 ## Project Structure
 
