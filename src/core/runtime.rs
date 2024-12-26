@@ -408,7 +408,7 @@ impl Runtime {
         println!("=== Starting FUD Bot ===");
         println!("Character type: {}", self.character_config.name);
         println!("Tweet mode enabled: {}", self.memory.tweet_mode);
-        println!("Debug mode enabled: {}", self.character_config.debug_mode);
+        println!("Debug mode enabled: {}", self.memory.debug_mode);
         println!("Number of agents: {}", self.agents.len());
         
         if let Some(last_time) = self.last_tweet_time {
@@ -472,7 +472,6 @@ impl Runtime {
         text.chars().all(|c| base58_chars.contains(c))
     }
 
-    // Helper function to extract ticker symbols
     fn extract_ticker_or_address(text: &str) -> Option<(String, bool)> {  // Returns (token, is_address)
         let words: Vec<&str> = text.split_whitespace().collect();
         
@@ -488,14 +487,15 @@ impl Runtime {
             
             // Check for $ prefixed ticker
             if trimmed.starts_with('$') && trimmed.len() > 1 {
-                let ticker = trimmed[1..].to_string();
-                if ticker.chars().any(|c| c.is_ascii_alphanumeric()) {
+                // Strip non-alphanumeric characters from the end
+                let ticker = trimmed[1..].trim_end_matches(|c: char| !c.is_ascii_alphanumeric());
+                if !ticker.is_empty() {
                     println!("Found $ prefixed ticker: {}", ticker);
-                    return Some((ticker, false));
+                    return Some((ticker.to_string(), false));
                 }
             }
         }
-
+    
         // If no $ ticker or address found, look for keywords followed by potential tickers
         let text_lower = text.to_lowercase();
         let trigger_words = ["thoughts on", "think of", "about", "contract", "address"];
@@ -524,6 +524,7 @@ impl Runtime {
         
         None
     }
+    
 
     ////////////////////////
     /// FUD-SPECIFIC ACTIONS
@@ -636,7 +637,7 @@ impl Runtime {
                     use rand::seq::SliceRandom;
                     let mut selected = unresponded_notifications.clone();
                     selected.shuffle(&mut rng);
-                    selected.truncate(2);
+                    selected.truncate(3);
                     selected
                 } else {
                     unresponded_notifications
@@ -647,9 +648,15 @@ impl Runtime {
                 for tweet in notifications_to_process {
                     println!("Processing tweet: {}", tweet.text);
                     let tweet_id = tweet.id.to_string();
+                    
                     let selected_agent = &mut self.agents[0];
                     
-                    let fud_response = if let Some((token, is_address)) = Self::extract_ticker_or_address(&tweet.text) {
+                    // let fud_response = if let Some(request) = Self::is_token_info_request(&tweet.text) {
+                    //     println!("Detected token info request: {:?}", request);
+                    //     self.handle_token_info_request(request)
+                    // } else
+                    let fud_response = 
+                    if let Some((token, is_address)) = Self::extract_ticker_or_address(&tweet.text) {
                         println!("Found token/address in tweet: {} (is_address: {})", token, is_address);
                         
                         let token_info = if is_address {
@@ -681,15 +688,12 @@ impl Runtime {
                         }
                     } else {
                         println!("No ticker/address found, generating generic insult response");
-
-                        // Generate a vicious but non-specific response
                         let prompt = r#"Task: Generate a vicious sarcastic insult response.
                         Requirements:
                         - Stay under 240 characters
                         - Be extremely condescending and mocking
                         - Question the person's intelligence and trading abilities
                         - Use all lowercase except for token symbols
-                        - Don't use the word $MEMECOIN
                         - Avoid any specific personal attacks
                         - Focus on their lack of understanding or research
                         Write ONLY the response text with no additional commentary:"#;
@@ -741,5 +745,77 @@ impl Runtime {
             }
         }
     }
+
+    fn is_token_info_request(text: &str) -> Option<TokenInfoRequest> {
+        let text = text.to_lowercase();
+        
+        // Common patterns for asking about token info
+        let contract_patterns = [
+            "contract",
+            "address",
+            "ca",
+            "contract address",
+            "token address",
+        ];
+
+        let ticker_patterns = [
+            "ticker",
+            "symbol",
+            "token symbol",
+            "what's your ticker",
+            "what's your symbol",
+            "do you have a token",
+            "what's the ticker",
+            "gib CA",
+            "what's the CA"
+        ];
+
+        // Check if this is a question
+        let is_question = text.contains('?') || 
+            text.starts_with("what") || 
+            text.starts_with("where") || 
+            text.starts_with("how");
+
+        if !is_question {
+            return None;
+        }
+
+        // Check for contract address request
+        if contract_patterns.iter().any(|&pattern| text.contains(pattern)) {
+            return Some(TokenInfoRequest::ContractAddress);
+        }
+
+        // Check for ticker request
+        if ticker_patterns.iter().any(|&pattern| text.contains(pattern)) {
+            return Some(TokenInfoRequest::Ticker);
+        }
+
+        None
+    }
+
+    fn handle_token_info_request(&self, request: TokenInfoRequest) -> String {
+        match request {
+            TokenInfoRequest::ContractAddress => {
+                if self.memory.token_address.is_empty() {
+                    "ser i would tell you but the devs haven't given me that info yet ngmi".to_string()
+                } else {
+                    format!("contract: {} \n\nape responsibly ser", self.memory.token_address)
+                }
+            },
+            TokenInfoRequest::Ticker => {
+                if self.memory.token_symbol.is_empty() {
+                    "imagine asking for a ticker when the devs haven't even told me what it is yet".to_string()
+                } else {
+                    format!("${} \n\ndon't say i didn't warn you", self.memory.token_symbol)
+                }
+            }
+        }
+    }
+}
+
+#[derive(Debug)]
+enum TokenInfoRequest {
+    ContractAddress,
+    Ticker,
 }
 

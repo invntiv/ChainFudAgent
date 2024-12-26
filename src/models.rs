@@ -26,7 +26,9 @@ pub struct Memory {
     pub next_tweet: Option<DateTime<Utc>>,
     pub debug_mode: bool,
     pub tweet_mode: bool,
-    pub fud_only: bool
+    pub fud_only: bool,
+    pub token_symbol: String,      // Your token's ticker
+    pub token_address: String,  // Your tokens CA
 }
 
 #[derive(Serialize, Deserialize, Default)]
