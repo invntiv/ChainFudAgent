@@ -25,6 +25,8 @@ pub struct Runtime {
     last_tweet_time: Option<DateTime<Utc>>,
     solana_tracker: SolanaTracker,
     character_config: CharacterConfig,
+    recent_phrases: HashSet<String>,
+    max_recent_phrases: usize,
 }
 
 impl Runtime {
@@ -60,8 +62,40 @@ impl Runtime {
             last_notification_check: None,
             last_tweet_time: None,
             solana_tracker,
-            character_config
+            character_config,
+            recent_phrases: HashSet::new(),
+            max_recent_phrases: 50,
         }
+    }
+
+    fn contains_recent_phrase(&mut self, text: &str) -> bool {
+        // Split into 3-word phrases
+        let words: Vec<&str> = text.split_whitespace().collect();
+        for window in words.windows(3) {
+            let phrase = window.join(" ").to_lowercase();
+            if self.recent_phrases.contains(&phrase) {
+                return true;
+            }
+        }
+        
+        // Add new phrases
+        for window in words.windows(3) {
+            let phrase = window.join(" ").to_lowercase();
+            self.recent_phrases.insert(phrase);
+        }
+        
+        // Maintain size limit
+        if self.recent_phrases.len() > self.max_recent_phrases {
+            let phrases: Vec<String> = self.recent_phrases.iter()
+                .take(self.recent_phrases.len() - self.max_recent_phrases)
+                .cloned()
+                .collect();
+            for phrase in phrases {
+                self.recent_phrases.remove(&phrase);
+            }
+        }
+        
+        false
     }
 
     fn get_fud_examples() -> Vec<&'static str> {
@@ -118,7 +152,7 @@ impl Runtime {
 
     pub async fn run(&mut self) -> Result<(), anyhow::Error> {
         if self.agents.is_empty() {
-            return Err(anyhow::anyhow!("No agents available")).map_err(Into::into);
+            return Err(anyhow::anyhow!("No agents available"));
         }
     
         // Check if enough time has passed since last tweet
@@ -131,7 +165,7 @@ impl Runtime {
         let selected_agent = &self.agents[rng.gen_range(0..self.agents.len())];
         
         // This is where we decide what to tweet
-        let response = if rng.gen_bool(0.5) {
+        let tweet_content = if rng.gen_bool(0.5) {
             // Use the agent's normal post
             selected_agent
                 .generate_post()
@@ -144,19 +178,12 @@ impl Runtime {
                 .ok_or_else(|| anyhow::anyhow!("No tokens available"))?;
             self.solana_tracker.generate_fud(random_token)
         };
-        
-        let tokens = self.solana_tracker.get_top_tokens(35).await?;
-        let random_token = tokens
-            .get(rng.gen_range(0..tokens.len()))
-            .ok_or_else(|| anyhow::anyhow!("No tokens available"))?;
-        
-        let fud = self.solana_tracker.generate_fud(random_token);
-        println!("{}", fud);
+    
+        println!("Generated tweet content: {}", tweet_content);
     
         // Only proceed with tweeting if tweet_mode is true
         if self.memory.tweet_mode {
-            // Send tweet and handle rate limits
-            match self.twitter.tweet(response.clone()).await {
+            match self.twitter.tweet(tweet_content.clone()).await {
                 Ok(tweet_result) => {
                     // Update last tweet time
                     self.last_tweet_time = Some(Utc::now());
@@ -167,7 +194,7 @@ impl Runtime {
                     // Save to memory
                     match MemoryStore::add_to_memory(
                         &mut self.memory,
-                        &response,
+                        &tweet_content,
                         &selected_agent.prompt,
                         twitter_id,
                     ) {
@@ -175,7 +202,7 @@ impl Runtime {
                         Err(e) => eprintln!("Failed to save response to memory: {}", e),
                     }
     
-                    println!("AI Response: {}", response);
+                    println!("Tweet posted: {}", tweet_content);
                     Ok(())
                 }
                 Err(e) => {
@@ -192,7 +219,7 @@ impl Runtime {
             // If tweet_mode is false, just save to memory without tweeting
             match MemoryStore::add_to_memory(
                 &mut self.memory,
-                &response,
+                &tweet_content,
                 &selected_agent.prompt,
                 None,
             ) {
@@ -436,30 +463,72 @@ impl Runtime {
 
     async fn generate_and_post_fud(&mut self) -> Result<(), anyhow::Error> {
         let now = Utc::now();
-
+    
         if !self.should_allow_tweet().await {
             println!("Skipping scheduled post - rate limit cooldown");
             return Ok(());
         }
-
+    
         let tokens = self.solana_tracker.get_top_tokens(30).await?;
         let mut rng = rand::thread_rng();
         
         if let Some(random_token) = tokens.get(rng.gen_range(0..tokens.len())) {
             let token_summary = self.solana_tracker.format_token_summary(random_token);
-            let selected_agent = &self.agents[0];
-            let fud = selected_agent.generate_editorialized_fud(&token_summary).await?;
+            let agent = &self.agents[0];
             
-            if self.memory.tweet_mode {
-                match self.twitter.tweet(fud.clone()).await {
-                    Ok(_) => {
-                        println!("Posted scheduled FUD at {:02}:{:02}", now.hour(), now.minute());
-                        self.last_tweet_time = Some(now);
-                    },
-                    Err(e) => eprintln!("Failed to post FUD tweet: {}", e),
+            let mut attempts = 0;
+            const MAX_ATTEMPTS: usize = 3;
+            
+            loop {
+                let fud = agent.generate_editorialized_fud(&token_summary).await?;
+                
+                // Create a temporary set of phrases for checking
+                let contains_recent = {
+                    let words: Vec<&str> = fud.split_whitespace().collect();
+                    let mut found = false;
+                    for window in words.windows(3) {
+                        let phrase = window.join(" ").to_lowercase();
+                        if self.recent_phrases.contains(&phrase) {
+                            found = true;
+                            break;
+                        }
+                    }
+                    found
+                };
+    
+                if !contains_recent || attempts >= MAX_ATTEMPTS {
+                    if self.memory.tweet_mode {
+                        match self.twitter.tweet(fud.clone()).await {
+                            Ok(_) => {
+                                println!("Posted scheduled FUD at {:02}:{:02}", now.hour(), now.minute());
+                                self.last_tweet_time = Some(now);
+                                
+                                // Update phrases after successful post
+                                let words: Vec<&str> = fud.split_whitespace().collect();
+                                for window in words.windows(3) {
+                                    let phrase = window.join(" ").to_lowercase();
+                                    self.recent_phrases.insert(phrase);
+                                }
+    
+                                // Trim cache if needed
+                                if self.recent_phrases.len() > self.max_recent_phrases {
+                                    let oldest: Vec<String> = self.recent_phrases
+                                        .iter()
+                                        .take(self.recent_phrases.len() - self.max_recent_phrases)
+                                        .cloned()
+                                        .collect();
+                                    for phrase in oldest {
+                                        self.recent_phrases.remove(&phrase);
+                                    }
+                                }
+                            },
+                            Err(e) => eprintln!("Failed to post FUD tweet: {}", e),
+                        }
+                    }
+                    break;
                 }
-            } else {
-                println!("Tweet mode disabled, skipping scheduled post");
+                
+                attempts += 1;
             }
         }
         
