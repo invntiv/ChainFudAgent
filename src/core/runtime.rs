@@ -117,10 +117,6 @@ impl Runtime {
     }
 
     pub async fn run(&mut self) -> Result<(), anyhow::Error> {
-        //FUD First get and show trending summary
-        let summary = self.get_trending_solana_summary().await?;
-        println!("Solana trending summary: {}", summary);
-    
         if self.agents.is_empty() {
             return Err(anyhow::anyhow!("No agents available")).map_err(Into::into);
         }
@@ -368,38 +364,61 @@ impl Runtime {
         }
     }
 
+    fn is_solana_address(text: &str) -> bool {
+        if text.len() < 32 || text.len() > 44 {
+            return false;
+        }
+
+        // Check if string only contains valid base58 characters
+        let base58_chars = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+        text.chars().all(|c| base58_chars.contains(c))
+    }
+
     // Helper function to extract ticker symbols
-    fn extract_ticker_symbol(text: &str) -> Option<String> {
+    fn extract_ticker_or_address(text: &str) -> Option<(String, bool)> {  // Returns (token, is_address)
         let words: Vec<&str> = text.split_whitespace().collect();
         
-        // First try to find a $ prefixed ticker
+        // First try to find a $ prefixed ticker or direct address
         for word in words.iter() {
             let trimmed = word.trim();
+            
+            // Check for Solana address
+            if Self::is_solana_address(trimmed) {
+                println!("Found Solana address: {}", trimmed);
+                return Some((trimmed.to_string(), true));
+            }
+            
+            // Check for $ prefixed ticker
             if trimmed.starts_with('$') && trimmed.len() > 1 {
                 let ticker = trimmed[1..].to_string();
                 if ticker.chars().any(|c| c.is_ascii_alphanumeric()) {
                     println!("Found $ prefixed ticker: {}", ticker);
-                    return Some(ticker);
+                    return Some((ticker, false));
                 }
             }
         }
 
-        // If no $ ticker found, look for keywords followed by potential tickers
+        // If no $ ticker or address found, look for keywords followed by potential tickers
         let text_lower = text.to_lowercase();
-        let trigger_words = ["thoughts on", "think of", "about"];
+        let trigger_words = ["thoughts on", "think of", "about", "contract", "address"];
         
         for trigger in trigger_words.iter() {
             if let Some(pos) = text_lower.find(trigger) {
                 let after_trigger = &text[pos + trigger.len()..];
-                let potential_ticker = after_trigger
+                let potential_token = after_trigger
                     .split_whitespace()
                     .next()
-                    .map(|w| w.trim_matches(|c: char| !c.is_ascii_alphanumeric()));
+                    .map(|w| w.trim_matches(|c: char| !c.is_ascii_alphanumeric() && c != '_'));
                 
-                if let Some(ticker) = potential_ticker {
-                    if !ticker.is_empty() {
-                        println!("Found implied ticker from '{}': {}", trigger, ticker);
-                        return Some(ticker.to_string());
+                if let Some(token) = potential_token {
+                    if !token.is_empty() {
+                        if Self::is_solana_address(token) {
+                            println!("Found Solana address after '{}': {}", trigger, token);
+                            return Some((token.to_string(), true));
+                        } else {
+                            println!("Found implied ticker from '{}': {}", trigger, token);
+                            return Some((token.to_string(), false));
+                        }
                     }
                 }
             }
@@ -407,6 +426,7 @@ impl Runtime {
         
         None
     }
+
     ////////////////////////
     /// FUD-SPECIFIC ACTIONS
     ////////////////////////
@@ -492,30 +512,44 @@ impl Runtime {
                     let tweet_id = tweet.id.to_string();
                     let selected_agent = &self.agents[0];
                     
-                    let fud_response = if let Some(ticker) = Self::extract_ticker_symbol(&tweet.text) {
-                        println!("Found ticker in tweet: {}", ticker);
+                    let fud_response = if let Some((token, is_address)) = Self::extract_ticker_or_address(&tweet.text) {
+                        println!("Found token/address in tweet: {} (is_address: {})", token, is_address);
                         
-                        let tokens = self.solana_tracker.get_top_tokens(30).await?;
-                        println!("Got {} tokens from tracker", tokens.len());
+                        let token_info = if is_address {
+                            // Direct lookup by address
+                            match self.solana_tracker.get_token_by_address(&token).await {
+                                Ok(token) => Some(token),
+                                Err(e) => {
+                                    println!("Error looking up token by address: {}", e);
+                                    None
+                                }
+                            }
+                        } else {
+                            // Lookup by symbol from top tokens
+                            let tokens = self.solana_tracker.get_top_tokens(30).await?;
+                            println!("Got {} tokens from tracker", tokens.len());
+                            SolanaTracker::find_token_by_symbol(&tokens, &token)
+                                .cloned()  // Clone the found token since we're returning an owned value
+                        };
                         
-                        if let Some(token) = SolanaTracker::find_token_by_symbol(&tokens, &ticker) {
+                        if let Some(token) = token_info {
                             println!(
                                 "Found token {} with liquidity ${:.2}", 
                                 token.token.symbol,
                                 token.pools.first().map(|p| p.liquidity.usd).unwrap_or(0.0)
                             );
-                            let token_info = self.solana_tracker.format_token_summary(token);
-                            selected_agent.generate_editorialized_fud(&token_info).await?
+                            let token_summary = self.solana_tracker.format_token_summary(&token);
+                            selected_agent.generate_editorialized_fud(&token_summary).await?
                         } else {
-                            println!("No token found for ticker {}, using AI-generated generic FUD", ticker);
+                            println!("No token found for {}, using generic FUD", token);
+                            // Generate generic FUD about any token not found
                             self.solana_tracker.generate_generic_fud_with_agent(selected_agent).await?
                         }
                     } else {
-                        println!("No ticker found in tweet, using AI-generated generic FUD");
-                        self.solana_tracker.generate_generic_fud_with_agent(selected_agent).await?
+                        // Skip tweets without token references
+                        println!("No ticker/address found in tweet, skipping");
+                        continue;
                     };
-    
-                    println!("Generated FUD response: {}", fud_response);
     
                     if let Err(e) = MemoryStore::add_reply_to_memory(
                         &mut self.memory,

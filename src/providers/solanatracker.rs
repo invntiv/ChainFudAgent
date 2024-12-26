@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use anyhow::Result;
 use reqwest::header::{HeaderMap, HeaderValue};
-use crate::core::agent::Agent;  // Add this import
+use crate::core::agent::Agent;  
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct TokenResponse {
@@ -155,7 +155,55 @@ impl SolanaTracker {
     }
 
     pub async fn get_daily_trending(&self) -> Result<Vec<TokenResponse>> {
-        self.get_trending_tokens("24h").await
+        self.get_trending_tokens("5m").await
+    }
+
+pub async fn get_token_by_address(&self, address: &str) -> Result<TokenResponse> {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            "X-API-Key",
+            HeaderValue::from_str(&self.api_key)?,
+        );
+        
+        let url = format!(
+            "https://data.solanatracker.io/tokens/{}", 
+            address
+        );
+        
+        println!("Making request to: {}", url);
+        
+        let response = self
+            .client
+            .get(&url)
+            .headers(headers)
+            .send()
+            .await?;
+
+        let status = response.status();
+        println!("Response status: {}", status);
+
+        if !status.is_success() {
+            let error_text = response.text().await?;
+            println!("Error response body: {}", error_text);
+            return Err(anyhow::anyhow!(
+                "API request failed with status: {}. Response: {}", 
+                status,
+                error_text
+            ));
+        }
+
+        let body = response.text().await?;
+        
+        match serde_json::from_str::<TokenResponse>(&body) {
+            Ok(token) => Ok(token),
+            Err(e) => {
+                println!("Error parsing response: {}", e);
+                // Try parsing as Value first to debug
+                let v: serde_json::Value = serde_json::from_str(&body)?;
+                println!("Raw token data: {}", serde_json::to_string_pretty(&v)?);
+                Err(anyhow::anyhow!("Failed to parse token response: {}", e))
+            }
+        }
     }
 
     pub fn find_token_by_symbol<'a>(tokens: &'a [TokenResponse], symbol: &str) -> Option<&'a TokenResponse> {

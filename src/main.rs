@@ -1,13 +1,12 @@
 mod characteristics;
-mod core;
+pub mod core;
 mod memory;
 mod providers;
 use core::{instruction_builder::InstructionBuilder, runtime::Runtime};
 extern crate dotenv;
 pub mod models;
 pub mod character;
-use crate::models::CharacterConfig;  // Add this import at the top of main.rs
-
+use crate::models::CharacterConfig; 
 use dotenv::dotenv;
 use std::env;
 

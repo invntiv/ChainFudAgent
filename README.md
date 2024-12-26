@@ -1,6 +1,7 @@
 # DOC
 
 - Added multi-profile support; run a specific character by typing ` $env:CHARACTER_NAME="rina"; cargo run`
+- FUD Character: `$env:CHARACTER_NAME="fud"; cargo run`
 
 # RINA
 
