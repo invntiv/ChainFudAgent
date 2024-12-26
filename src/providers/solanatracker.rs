@@ -19,7 +19,6 @@ pub struct TokenInfo {
     pub symbol: String,
     #[serde(default)]
     pub mint: String,
-    // Make other fields optional
     #[serde(default)]
     pub uri: Option<String>,
     #[serde(default)]
@@ -113,39 +112,72 @@ pub struct SearchParams {
     pub show_price_changes: Option<bool>,
 }
 
+// New struct for search API response
 #[derive(Debug, Deserialize)]
 pub struct SearchResponse {
     pub status: String,
-    pub data: Vec<TokenResponse>,
+    pub data: Vec<SearchResult>,
 }
+
 
 #[derive(Debug, Deserialize)]
-pub struct TokenSearchResult {
-    pub id: String,
-    pub name: String,
-    pub symbol: String,
-    pub mint: String,
-    #[serde(default)]
-    pub image: Option<String>,
+pub struct SearchResult {
     pub decimals: u8,
-    pub quote_token: String,
-    pub has_socials: bool,
-    pub pool_address: String,
+    #[serde(rename = "freezeAuthority")]
+    pub freeze_authority: Option<String>,
+    pub image: Option<String>,
+    pub jupiter: Option<bool>,
+    #[serde(rename = "liquidityUsd")]
     pub liquidity_usd: f64,
-    pub market_cap_usd: f64,
+    #[serde(rename = "lpBurn")]
     pub lp_burn: Option<u32>,
     pub market: String,
-    pub freeze_authority: Option<String>,
+    #[serde(rename = "marketCapUsd")]
+    pub market_cap_usd: f64,
+    pub mint: String,
+    #[serde(rename = "mintAuthority")]
     pub mint_authority: Option<String>,
-    pub deployer: Option<String>,
-    pub created_at: i64,
-    pub status: String,
-    pub last_updated: i64,
-    pub buys: u32,
-    pub sells: u32,
-    pub total_transactions: u32,
+    pub name: String,
+    #[serde(rename = "poolAddress")]
+    pub pool_address: String,
+    pub symbol: String,
+    #[serde(rename = "totalBuys")]
+    pub total_buys: Option<u32>,
+    #[serde(rename = "totalSells")]
+    pub total_sells: Option<u32>,
+    #[serde(rename = "totalTransactions")]
+    pub total_transactions: Option<u32>,
+    pub verified: Option<bool>,
 }
 
+// Implement conversion from SearchResult to TokenResponse
+impl From<SearchResult> for TokenResponse {
+    fn from(result: SearchResult) -> Self {
+        let pool = Pool {
+            price: Price {
+                quote: 0.0,
+                usd: result.market_cap_usd / 1e9, // Approximate price from market cap
+            },
+            liquidity: Liquidity {
+                quote: 0.0,
+                usd: result.liquidity_usd,
+                price: Price::default(),
+            },
+            events: Events::default(),
+        };
+
+        TokenResponse {
+            token: TokenInfo {
+                name: result.name,
+                symbol: result.symbol,
+                mint: result.mint,
+                uri: None,
+                description: None,
+            },
+            pools: vec![pool],
+        }
+    }
+}
 
 pub struct SolanaTracker {
     api_key: String,
@@ -332,7 +364,7 @@ impl SolanaTracker {
              .replace("#", "%23")
              .replace("?", "%3F")
         }
-
+    
         // Build query string manually
         let mut query_parts = vec![format!("query={}", encode_param(&params.query))];
         
@@ -374,10 +406,10 @@ impl SolanaTracker {
             .headers(headers)
             .send()
             .await?;
-
+    
         let status = response.status();
         println!("Response status: {}", status);
-
+    
         if !status.is_success() {
             let error_text = response.text().await?;
             println!("Error response body: {}", error_text);
@@ -387,11 +419,16 @@ impl SolanaTracker {
                 error_text
             ));
         }
-
+    
         let body = response.text().await?;
         
         match serde_json::from_str::<SearchResponse>(&body) {
-            Ok(search_response) => Ok(search_response.data),
+            Ok(search_response) => {
+                // Convert SearchResults to TokenResponses
+                Ok(search_response.data.into_iter()
+                    .map(TokenResponse::from)
+                    .collect())
+            }
             Err(e) => {
                 println!("Error parsing response: {}", e);
                 let v: serde_json::Value = serde_json::from_str(&body)?;

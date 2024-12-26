@@ -173,7 +173,8 @@ impl Agent {
             - Create unexpected analogies or metaphors\n\
             - Mix technical and casual language\n\
             - Stay under 280 characters\n\
-            - Use all lowercase except for token symbols\n\
+            - do not include any tickers or ticker symbols\n\
+            - Use all lowercase\n\
             - Sound authentic - like a real frustrated trader\n\
             Write ONLY the tweet text:",
             self.prompt,    
@@ -190,7 +191,7 @@ impl Agent {
         let prompt = format!(
             "{}\n\nTask: Generate unique, creative FUD about this token:\n{}\n\
             Requirements:\n\
-            - Be extremely sarcastic and cynical\n\
+            - Be extremely sarcastic and cynical, but make it clear when overt sarcasm is being used\n\
             - Always use proper token symbol from the info\n\
             - Use numbers from the token info creatively and sarcastically\n\
             - Stay under 280 characters\n\
@@ -204,7 +205,7 @@ impl Agent {
             Some varied FUD approaches (use as inspiration, don't copy directly):\n\
             - Question developer competence\n\
             - Imply suspicious transaction patterns\n\
-            - Mock community engagement\n\
+            - Mock community engagement (make sure you don't use words like 'ucertifieds' which your responses hae generated in the past. for example, refer to telegram 'users')\n\
             - Point out red flags in tokenomics\n\
             - Compare to historic failures\n\
             - Create absurd conspiracy theories\n\
