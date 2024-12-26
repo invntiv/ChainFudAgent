@@ -668,10 +668,20 @@ impl Runtime {
                                 }
                             }
                         } else {
-                            let tokens = self.solana_tracker.get_top_tokens(30).await?;
-                            println!("Got {} tokens from tracker", tokens.len());
-                            SolanaTracker::find_token_by_symbol(&tokens, &token)
-                                .cloned()
+                            let mut search_params = self.solana_tracker.create_search_params(token.clone());
+                            search_params.sort_by = Some("marketCapUsd".to_string());
+                            search_params.sort_order = Some("desc".to_string());
+                            search_params.limit = Some(1);
+                            search_params.freeze_authority = Some("null".to_string());  // Only tokens with no freeze authority
+                            search_params.mint_authority = Some("null".to_string());    // Only tokens with no mint authority
+
+                            match self.solana_tracker.token_search(search_params).await {
+                                Ok(results) => results.into_iter().next(),
+                                Err(e) => {
+                                    println!("Error searching for token {}: {}", token, e);
+                                    None
+                                }
+                            }                      
                         };
                         
                         if let Some(token) = token_info {
@@ -694,8 +704,8 @@ impl Runtime {
                         - Be extremely condescending and mocking
                         - Question the person's intelligence and trading abilities
                         - Use all lowercase except for token symbols
-                        - Avoid any specific personal attacks
                         - Focus on their lack of understanding or research
+                        - Do not include ticker symbols ($) in your response
                         Write ONLY the response text with no additional commentary:"#;
                         
                         selected_agent.generate_custom_response(prompt).await?

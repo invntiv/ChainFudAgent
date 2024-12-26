@@ -68,6 +68,84 @@ pub struct Events {
     pub price_change_percentage_24h: Option<f64>,
 }
 
+#[derive(Debug, Serialize)]
+pub struct SearchParams {
+    pub query: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub page: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub limit: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sort_by: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sort_order: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub min_liquidity: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_liquidity: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub min_market_cap: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_market_cap: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub min_buys: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_buys: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub min_sells: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_sells: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub min_total_transactions: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_total_transactions: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub lp_burn: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub market: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub freeze_authority: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mint_authority: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub deployer: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub show_price_changes: Option<bool>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SearchResponse {
+    pub status: String,
+    pub data: Vec<TokenResponse>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct TokenSearchResult {
+    pub id: String,
+    pub name: String,
+    pub symbol: String,
+    pub mint: String,
+    #[serde(default)]
+    pub image: Option<String>,
+    pub decimals: u8,
+    pub quote_token: String,
+    pub has_socials: bool,
+    pub pool_address: String,
+    pub liquidity_usd: f64,
+    pub market_cap_usd: f64,
+    pub lp_burn: Option<u32>,
+    pub market: String,
+    pub freeze_authority: Option<String>,
+    pub mint_authority: Option<String>,
+    pub deployer: Option<String>,
+    pub created_at: i64,
+    pub status: String,
+    pub last_updated: i64,
+    pub buys: u32,
+    pub sells: u32,
+    pub total_transactions: u32,
+}
+
 
 pub struct SolanaTracker {
     api_key: String,
@@ -159,7 +237,7 @@ impl SolanaTracker {
         self.get_trending_tokens("5m").await
     }
 
-pub async fn get_token_by_address(&self, address: &str) -> Result<TokenResponse> {
+    pub async fn get_token_by_address(&self, address: &str) -> Result<TokenResponse> {
         let mut headers = HeaderMap::new();
         headers.insert(
             "X-API-Key",
@@ -236,6 +314,118 @@ pub async fn get_token_by_address(&self, address: &str) -> Result<TokenResponse>
                     .unwrap_or(0.0);
                 a_liquidity.partial_cmp(&b_liquidity).unwrap_or(std::cmp::Ordering::Equal)
             })
+    }
+
+    pub async fn token_search(&self, params: SearchParams) -> Result<Vec<TokenResponse>> {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            "X-API-Key",
+            HeaderValue::from_str(&self.api_key)?,
+        );
+        
+        // Simple URL encode function for our known parameter types
+        fn encode_param(s: &str) -> String {
+            s.replace(" ", "%20")
+             .replace("&", "%26")
+             .replace("=", "%3D")
+             .replace("+", "%2B")
+             .replace("#", "%23")
+             .replace("?", "%3F")
+        }
+
+        // Build query string manually
+        let mut query_parts = vec![format!("query={}", encode_param(&params.query))];
+        
+        if let Some(page) = params.page {
+            query_parts.push(format!("page={}", page));
+        }
+        if let Some(limit) = params.limit {
+            query_parts.push(format!("limit={}", limit));
+        }
+        if let Some(ref sort_by) = params.sort_by {
+            query_parts.push(format!("sortBy={}", encode_param(sort_by)));
+        }
+        if let Some(ref sort_order) = params.sort_order {
+            query_parts.push(format!("sortOrder={}", encode_param(sort_order)));
+        }
+        if let Some(min_liquidity) = params.min_liquidity {
+            query_parts.push(format!("minLiquidity={}", min_liquidity));
+        }
+        if let Some(max_liquidity) = params.max_liquidity {
+            query_parts.push(format!("maxLiquidity={}", max_liquidity));
+        }
+        if let Some(ref freeze_authority) = params.freeze_authority {
+            query_parts.push(format!("freezeAuthority={}", encode_param(freeze_authority)));
+        }
+        if let Some(ref mint_authority) = params.mint_authority {
+            query_parts.push(format!("mintAuthority={}", encode_param(mint_authority)));
+        }
+        
+        let url = format!(
+            "https://data.solanatracker.io/search?{}", 
+            query_parts.join("&")
+        );
+        
+        println!("Making request to: {}", url);
+        
+        let response = self
+            .client
+            .get(&url)
+            .headers(headers)
+            .send()
+            .await?;
+
+        let status = response.status();
+        println!("Response status: {}", status);
+
+        if !status.is_success() {
+            let error_text = response.text().await?;
+            println!("Error response body: {}", error_text);
+            return Err(anyhow::anyhow!(
+                "API request failed with status: {}. Response: {}", 
+                status,
+                error_text
+            ));
+        }
+
+        let body = response.text().await?;
+        
+        match serde_json::from_str::<SearchResponse>(&body) {
+            Ok(search_response) => Ok(search_response.data),
+            Err(e) => {
+                println!("Error parsing response: {}", e);
+                let v: serde_json::Value = serde_json::from_str(&body)?;
+                println!("Raw response data: {}", serde_json::to_string_pretty(&v)?);
+                Err(anyhow::anyhow!("Failed to parse search response: {}", e))
+            }
+        }
+    }
+
+    // Make create_search_params take &self to be a method instead of associated function
+    pub fn create_search_params(&self, query: String) -> SearchParams {
+        SearchParams {
+            query,
+            page: None,
+            limit: None,
+            sort_by: None,
+            sort_order: None,
+            min_liquidity: None,
+            max_liquidity: None,
+            min_market_cap: None,
+            max_market_cap: None,
+            min_buys: None,
+            max_buys: None,
+            min_sells: None,
+            max_sells: None,
+            min_total_transactions: None,
+            max_total_transactions: None,
+            lp_burn: None,
+            market: None,
+            freeze_authority: None,
+            mint_authority: None,
+            deployer: None,
+            show_price_changes: None,
+        }
     }
 
     pub fn format_currency(amount: f64) -> String {
