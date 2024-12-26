@@ -1,4 +1,6 @@
 use serde::{Deserialize, Serialize};
+use serde::de::Deserializer;
+
 use anyhow::Result;
 use reqwest::header::{HeaderMap, HeaderValue};
 use crate::core::agent::Agent;  
@@ -47,10 +49,19 @@ pub struct Liquidity {
 
 #[derive(Debug, Deserialize, Clone, Default)]
 pub struct Price {
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_null_default")]
     pub quote: f64,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_null_default")]
     pub usd: f64,
+}
+
+fn deserialize_null_default<'de, D, T>(deserializer: D) -> Result<T, D::Error>
+where
+    T: Default + Deserialize<'de>,
+    D: Deserializer<'de>,
+{
+    let opt = Option::deserialize(deserializer)?;
+    Ok(opt.unwrap_or_default())
 }
 
 #[derive(Debug, Deserialize, Clone, Default)]
@@ -112,11 +123,15 @@ pub struct SearchParams {
     pub show_price_changes: Option<bool>,
 }
 
-// New struct for search API response
 #[derive(Debug, Deserialize)]
 pub struct SearchResponse {
     pub status: String,
+    #[serde(default)]
     pub data: Vec<SearchResult>,
+    #[serde(default)]
+    pub error: Option<String>,
+    #[serde(default)]
+    pub message: Option<String>,
 }
 
 
@@ -149,6 +164,7 @@ pub struct SearchResult {
     pub total_transactions: Option<u32>,
     pub verified: Option<bool>,
 }
+
 
 // Implement conversion from SearchResult to TokenResponse
 impl From<SearchResult> for TokenResponse {
@@ -410,30 +426,28 @@ impl SolanaTracker {
         let status = response.status();
         println!("Response status: {}", status);
     
-        if !status.is_success() {
-            let error_text = response.text().await?;
-            println!("Error response body: {}", error_text);
-            return Err(anyhow::anyhow!(
-                "API request failed with status: {}. Response: {}", 
-                status,
-                error_text
-            ));
-        }
-    
         let body = response.text().await?;
         
         match serde_json::from_str::<SearchResponse>(&body) {
             Ok(search_response) => {
-                // Convert SearchResults to TokenResponses
-                Ok(search_response.data.into_iter()
-                    .map(TokenResponse::from)
-                    .collect())
+                if search_response.status == "error" {
+                    println!("API returned error: {} - {}", 
+                        search_response.error.unwrap_or_default(),
+                        search_response.message.unwrap_or_default()
+                    );
+                    Ok(Vec::new()) // Return empty vec on error
+                } else {
+                    // Convert SearchResults to TokenResponses
+                    Ok(search_response.data.into_iter()
+                        .map(TokenResponse::from)
+                        .collect())
+                }
             }
             Err(e) => {
                 println!("Error parsing response: {}", e);
                 let v: serde_json::Value = serde_json::from_str(&body)?;
                 println!("Raw response data: {}", serde_json::to_string_pretty(&v)?);
-                Err(anyhow::anyhow!("Failed to parse search response: {}", e))
+                Ok(Vec::new()) // Return empty vec on parse error
             }
         }
     }

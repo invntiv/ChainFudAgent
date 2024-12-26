@@ -192,6 +192,7 @@ impl Agent {
             "{}\n\nTask: Generate unique, creative FUD about this token:\n{}\n\
             Requirements:\n\
             - Be extremely sarcastic and cynical, but make it clear when overt sarcasm is being used\n\
+            - dont encapsulate your response in quotes\n\
             - Always use proper token symbol from the info\n\
             - Use numbers from the token info creatively and sarcastically\n\
             - Stay under 280 characters\n\

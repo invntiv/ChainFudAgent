@@ -1,4 +1,5 @@
 target/
 .env
-storage/memory.json
+*.json
 
+storage/memory.json

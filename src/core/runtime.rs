@@ -604,7 +604,7 @@ impl Runtime {
         Ok(())
     }
 
-    async fn handle_notifications_fud(&mut self) -> Result<(), anyhow::Error> {
+    pub async fn handle_notifications_fud(&mut self) -> Result<(), anyhow::Error> {
         if self.agents.is_empty() {
             return Err(anyhow::anyhow!("No agents available"));
         }
@@ -649,32 +649,39 @@ impl Runtime {
                     println!("Processing tweet: {}", tweet.text);
                     let tweet_id = tweet.id.to_string();
                     
-                    let selected_agent = &mut self.agents[0];
-                    
-                    // let fud_response = if let Some(request) = Self::is_token_info_request(&tweet.text) {
-                    //     println!("Detected token info request: {:?}", request);
-                    //     self.handle_token_info_request(request)
-                    // } else
-                    let fud_response = 
-                    if let Some((token, is_address)) = Self::extract_ticker_or_address(&tweet.text) {
+                    // Generate the response before getting the mutable reference to the agent
+                    let fud_response = if let Some(request) = Self::is_token_info_request(&tweet.text) {
+                        println!("Detected token info request: {:?}", request);
+                        // Move token info handling logic here to avoid borrow conflicts
+                        match request {
+                            TokenInfoRequest::ContractAddress => {
+                                if self.memory.token_address.is_empty() {
+                                    "ser i would tell you but the devs haven't given me that info yet ngmi".to_string()
+                                } else {
+                                    format!("contract: {} \n\nape responsibly ser", self.memory.token_address)
+                                }
+                            },
+                            TokenInfoRequest::Ticker => {
+                                if self.memory.token_symbol.is_empty() {
+                                    "imagine asking for a ticker when the devs haven't even told me what it is yet".to_string()
+                                } else {
+                                    format!("${} \n\ndon't say i didn't warn you", self.memory.token_symbol)
+                                }
+                            }
+                        }
+                    } else if let Some((token, is_address)) = Self::extract_ticker_or_address(&tweet.text) {
                         println!("Found token/address in tweet: {} (is_address: {})", token, is_address);
                         
                         let token_info = if is_address {
-                            match self.solana_tracker.get_token_by_address(&token).await {
-                                Ok(token) => Some(token),
-                                Err(e) => {
-                                    println!("Error looking up token by address: {}", e);
-                                    None
-                                }
-                            }
+                            self.solana_tracker.get_token_by_address(&token).await.ok()
                         } else {
                             let mut search_params = self.solana_tracker.create_search_params(token.clone());
                             search_params.sort_by = Some("marketCapUsd".to_string());
                             search_params.sort_order = Some("desc".to_string());
                             search_params.limit = Some(1);
-                            search_params.freeze_authority = Some("null".to_string());  // Only tokens with no freeze authority
-                            search_params.mint_authority = Some("null".to_string());    // Only tokens with no mint authority
-
+                            search_params.freeze_authority = Some("null".to_string());
+                            search_params.mint_authority = Some("null".to_string());
+    
                             match self.solana_tracker.token_search(search_params).await {
                                 Ok(results) => results.into_iter().next(),
                                 Err(e) => {
@@ -683,6 +690,9 @@ impl Runtime {
                                 }
                             }                      
                         };
+    
+                        // Get agent after token info lookup
+                        let selected_agent = &mut self.agents[0];
                         
                         if let Some(token) = token_info {
                             println!(
@@ -697,6 +707,7 @@ impl Runtime {
                             self.solana_tracker.generate_generic_fud_with_agent(selected_agent).await?
                         }
                     } else {
+                        let selected_agent = &mut self.agents[0];
                         println!("No ticker/address found, generating generic insult response");
                         let prompt = r#"Task: Generate a vicious sarcastic insult response.
                         Requirements:
@@ -705,16 +716,18 @@ impl Runtime {
                         - Question the person's intelligence and trading abilities
                         - Use all lowercase except for token symbols
                         - Focus on their lack of understanding or research
-                        - Do not include ticker symbols ($) in your response
+                        - Do not include tickers or symbols ($) in your response
                         Write ONLY the response text with no additional commentary:"#;
                         
                         selected_agent.generate_custom_response(prompt).await?
                     };
     
+                    let agent_prompt = self.agents[0].prompt.clone();
+                    
                     if let Err(e) = MemoryStore::add_reply_to_memory(
                         &mut self.memory,
                         &fud_response,
-                        &selected_agent.prompt,
+                        &agent_prompt,
                         Some(tweet_id.clone()),
                         tweet.id.to_string(),
                     ) {
@@ -764,6 +777,8 @@ impl Runtime {
             "contract",
             "address",
             "ca",
+            "CA?",
+            "ca?",
             "contract address",
             "token address",
         ];
@@ -782,9 +797,7 @@ impl Runtime {
 
         // Check if this is a question
         let is_question = text.contains('?') || 
-            text.starts_with("what") || 
-            text.starts_with("where") || 
-            text.starts_with("how");
+            text.starts_with("what");
 
         if !is_question {
             return None;
@@ -804,19 +817,74 @@ impl Runtime {
     }
 
     fn handle_token_info_request(&self, request: TokenInfoRequest) -> String {
+        use rand::seq::SliceRandom;
+        let mut rng = rand::thread_rng();
+    
         match request {
             TokenInfoRequest::ContractAddress => {
                 if self.memory.token_address.is_empty() {
-                    "ser i would tell you but the devs haven't given me that info yet ngmi".to_string()
+                    // Responses for when no contract address is available
+                    let responses = [
+                        "ser i would tell you but the devs haven't given me that info yet ngmi",
+                        "anon wants the contract but there isn't one yet... ngmi",
+                        "imagine asking for a contract that doesn't exist yet",
+                        "sorry ser, devs are still fighting over who gets to deploy",
+                        "contract machine broke (devs ngmi)",
+                        "wen contract? soon™",
+                        "404 contract not found (touch grass)",
+                        "still waiting for devs to finish copying bonk's contract",
+                        "contract is still in the microwave ser",
+                        "devs said they'll deploy right after they finish their mcdonald's shift"
+                    ];
+                    responses.choose(&mut rng).unwrap().to_string()
                 } else {
-                    format!("contract: {} \n\nape responsibly ser", self.memory.token_address)
+                    // Responses for when contract address is available
+                    let templates = [
+                        "contract: {} \n\nape responsibly ser",
+                        "here's your precious contract: {} \n\ndo what you want, i'm not your financial advisor",
+                        "ca: {} \n\ndon't blame me when you lose everything",
+                        "{} \n\nhappy now? dyor",
+                        "fine here's your contract: {} \n\nngmi anyway",
+                        "contract address (since you're so desperate): {} \n\nser please be careful",
+                        "ca: {} \n\nwhat you do with this is not my problem",
+                        "{} \n\nuse this information wisely (or don't, see if i care)",
+                        "breaking news: local degen wants contract \n\n{} \n\ngood luck ser",
+                        "dear opportunity seeker, \n\nhere's your contract: {} \n\nsincerely, \nthe bearer of bad news"
+                    ];
+                    format!("{}", templates.choose(&mut rng).unwrap().replace("{}", &self.memory.token_address))
                 }
             },
             TokenInfoRequest::Ticker => {
                 if self.memory.token_symbol.is_empty() {
-                    "imagine asking for a ticker when the devs haven't even told me what it is yet".to_string()
+                    // Responses for when no ticker is available
+                    let responses = [
+                        "imagine asking for a ticker when the devs haven't even told me what it is yet",
+                        "no ticker yet ser... patience is a virtue (or so i'm told)",
+                        "ticker machine broke, come back never",
+                        "still working on the ticker... probably gonna be some dog variation tbh",
+                        "devs are still fighting over whether to include 'inu' or 'pepe' in the name",
+                        "ticker loading... (est. time: 2 weeks™)",
+                        "ser wants ticker but we don't even have one yet... ngmi",
+                        "sorry, ticker team is busy creating the next revolutionary 3-letter combination",
+                        "wen ticker? right after wen lambo probably",
+                        "ticker is still in development (like your trading strategy)"
+                    ];
+                    responses.choose(&mut rng).unwrap().to_string()
                 } else {
-                    format!("${} \n\ndon't say i didn't warn you", self.memory.token_symbol)
+                    // Responses for when ticker is available
+                    let templates = [
+                        "${} \n\ndon't say i didn't warn you",
+                        "ticker: ${} \n\ndo your worst",
+                        "since you asked so nicely: ${} \n\nngmi",
+                        "${} \n\nuse this information wisely (or don't, see if i care)",
+                        "breaking: local degen asks for ticker \n\n${} \n\ngood luck ser",
+                        "you're looking for ${} \n\nhope you know what you're doing",
+                        "${} \n\nanother day another rugpull",
+                        "congratulations, you found ${} \n\nmy condolences to your portfolio",
+                        "behold, the newest speedrun to zero: ${} \n\nwagmi (we are gonna miss income)",
+                        "dear future bagholder, \n\nyour ticket to poverty: ${} \n\nenjoy the ride"
+                    ];
+                    format!("{}", templates.choose(&mut rng).unwrap().replace("{}", &self.memory.token_symbol))
                 }
             }
         }
