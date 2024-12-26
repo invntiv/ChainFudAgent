@@ -717,6 +717,7 @@ impl Runtime {
                         - Use all lowercase except for token symbols
                         - Focus on their lack of understanding or research
                         - Do not include tickers or symbols ($) in your response
+                        - Do not mention specific tokens
                         Write ONLY the response text with no additional commentary:"#;
                         
                         selected_agent.generate_custom_response(prompt).await?
