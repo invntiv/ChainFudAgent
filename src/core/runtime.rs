@@ -680,8 +680,21 @@ impl Runtime {
                             self.solana_tracker.generate_generic_fud_with_agent(selected_agent).await?
                         }
                     } else {
-                        println!("No ticker/address found in tweet, skipping");
-                        continue;
+                        println!("No ticker/address found, generating generic insult response");
+
+                        // Generate a vicious but non-specific response
+                        let prompt = r#"Task: Generate a vicious sarcastic insult response.
+                        Requirements:
+                        - Stay under 240 characters
+                        - Be extremely condescending and mocking
+                        - Question the person's intelligence and trading abilities
+                        - Use all lowercase except for token symbols
+                        - Don't use the word $MEMECOIN
+                        - Avoid any specific personal attacks
+                        - Focus on their lack of understanding or research
+                        Write ONLY the response text with no additional commentary:"#;
+                        
+                        selected_agent.generate_custom_response(prompt).await?
                     };
     
                     if let Err(e) = MemoryStore::add_reply_to_memory(
