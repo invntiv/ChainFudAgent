@@ -16,9 +16,16 @@ async fn main() -> Result<(), anyhow::Error> {
         eprintln!("Error loading .env file: {}", e);
     }
 
+    // Get debug mode from environment
+    let debug_mode = env::var("DEBUG_MODE")
+        .unwrap_or_else(|_| "false".to_string())
+        .parse::<bool>()
+        .unwrap_or(false);
+
     let character_config = CharacterConfig {
-            name: "fud".to_string(),
-        };
+        name: "fud".to_string(),
+        debug_mode,
+    };
 
     let mut runtime = Runtime::new(
         &env::var("ANTHROPIC_API_KEY").expect("ANTHROPIC_API_KEY not set"),

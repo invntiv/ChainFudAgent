@@ -2,8 +2,10 @@ use rig::agent::Agent as RigAgent;
 use rig::providers::anthropic::completion::CompletionModel;
 use rig::providers::anthropic::{self, CLAUDE_3_HAIKU};
 use rig::completion::Prompt;
-use rand::{self};
+use rand::{self, Rng};
 use serde_json::json;
+use std::collections::HashMap;
+
 
 use std::{
     env,
@@ -16,6 +18,7 @@ pub struct Agent {
     agent: RigAgent<CompletionModel>,
     anthropic_api_key: String,
     pub prompt: String,
+    fud_analysis: FudAnalysis, 
 }
 
 #[derive(Debug, PartialEq)]
@@ -24,11 +27,62 @@ pub enum ResponseDecision {
     Ignore,
 }
 
+#[derive(Debug, Clone)]
+struct FudAnalysis {
+    word_frequencies: HashMap<String, usize>,
+    pattern_frequencies: HashMap<String, usize>,
+}
+
+impl FudAnalysis {
+    fn new() -> Self {
+        FudAnalysis {
+            word_frequencies: HashMap::new(),
+            pattern_frequencies: HashMap::new(),
+        }
+    }
+
+    fn update(&mut self, text: &str) {
+        // Update word frequencies
+        for word in text.split_whitespace() {
+            *self.word_frequencies.entry(word.to_lowercase()).or_insert(0) += 1;
+        }
+
+        // Update pattern frequencies (basic phrases)
+        let patterns = ["ser", "ngmi", "wen", "just", "literally"];
+        for pattern in patterns.iter() {
+            if text.to_lowercase().contains(pattern) {
+                *self.pattern_frequencies.entry(pattern.to_string()).or_insert(0) += 1;
+            }
+        }
+    }
+
+    fn is_overused(&self, text: &str) -> bool {
+        // Check for overused words
+        let words: Vec<&str> = text.split_whitespace().collect();
+        for word in words {
+            if let Some(count) = self.word_frequencies.get(&word.to_lowercase()) {
+                if *count > 5 {
+                    return true;
+                }
+            }
+        }
+
+        // Check for overused patterns
+        for (pattern, count) in &self.pattern_frequencies {
+            if *count > 3 && text.to_lowercase().contains(pattern) {
+                return true;
+            }
+        }
+
+        false
+    }
+}
+
 impl Agent {
     pub fn new(anthropic_api_key: &str, prompt: &str) -> Self {
         let client = anthropic::ClientBuilder::new(anthropic_api_key).build();
         let rng = rand::thread_rng();
-        let temperature = 0.9; // Higher temperature for more variety
+        let temperature = 0.9;
 
         let agent = client
             .agent(CLAUDE_3_HAIKU)
@@ -40,6 +94,7 @@ impl Agent {
             agent,
             anthropic_api_key: anthropic_api_key.to_string(),
             prompt: prompt.to_string(),
+            fud_analysis: FudAnalysis::new(),  // Initialize FudAnalysis
         }
     }
 
@@ -72,12 +127,20 @@ impl Agent {
             Generate a brief, single response that:\n\
             - Uses all lowercase\n\
             - Avoids punctuation\n\
-            - Is direct and possibly sarcastic\n\
+            - Is direct and very sarcastic\n\
             - Stays under 280 characters\n\
             Write only the response text, nothing else:",
             tweet
         );
         let response = self.agent.prompt(&prompt).await?;
+        Ok(response.trim().to_string())
+    }
+
+    pub async fn generate_custom_response(&self, prompt: &str) -> Result<String, anyhow::Error> {
+        let response = self.agent
+            .prompt(prompt)
+            .await?;
+
         Ok(response.trim().to_string())
     }
 
@@ -97,72 +160,149 @@ impl Agent {
         Ok(response.trim().to_string())
     }
 
+    // Modify generate_generic_fud to use similar theme-based approach
     pub async fn generate_generic_fud(&self, intro: &str, reason: &str, closing: &str) -> Result<String, anyhow::Error> {
         let prompt = format!(
-            "{}\n\nTask: Generate a toxic, cynical comment incorporating these elements:\n\
-            Intro: {}\n\
-            FUD Reason: {}\n\
-            Closing: {}\n\n\
+            "{}\n\nTask: Generate a creative and unique cynical comment.\n\
+            Base elements to incorporate:\n\
+            - Intro theme: {}\n\
+            - Core criticism: {}\n\
+            - Closing note: {}\n\n\
             Requirements:\n\
-            - Be extremely sarcastic and cynical\n\
-            - Incorporate the provided intro, reason, and closing creatively\n\
-            - Don't include a ticker
+            - Transform these elements creatively - don't use them verbatim\n\
+            - Create unexpected analogies or metaphors\n\
+            - Mix technical and casual language\n\
             - Stay under 280 characters\n\
             - Use all lowercase except for token symbols\n\
-            - Be creative with metaphors about scams, rugpulls, or dev behavior\n\
-            - Avoid hashtags\n\
-            - No emojis (they will be added later)\n\
-            Write ONLY the tweet text with no additional commentary:",
-            self.prompt,
+            - Sound authentic - like a real frustrated trader\n\
+            Write ONLY the tweet text:",
+            self.prompt,    
             intro,
             reason,
             closing
         );
 
         let response = self.agent.prompt(&prompt).await?;
-        Ok(response.trim().to_string())
+        Ok(self.ensure_unique_style(response.trim())?)
     }
 
-    pub async fn generate_editorialized_fud(&self, token_info: &str) -> Result<String, anyhow::Error> {
+    pub async fn generate_editorialized_fud(&mut self, token_info: &str) -> Result<String, anyhow::Error> {
         let prompt = format!(
-            "{}\n\nTask: Generate a toxic, cynical commentary about this token:\n{}\n\
+            "{}\n\nTask: Generate unique, creative FUD about this token:\n{}\n\
             Requirements:\n\
             - Be extremely sarcastic and cynical\n\
             - Always use proper token symbol from the info\n\
-            - Use ONLY the actual numbers provided in the token info (liquidity, market cap)\n\
-            - Don't mention the price\n\
-            - Use information from SOLANA chain. Do not mention BNB tokens.
-            - If no numbers are available, focus on qualitative criticism instead\n\
-            - Never make up specific numbers - if you need a number, use vague terms like 'countless' or 'zero'\n\
-            - Be creative with metaphors about scams, rugpulls, or dev behavior\n\
+            - Use numbers from the token info creatively and sarcastically\n\
             - Stay under 280 characters\n\
             - Use all lowercase except for token symbols\n\
-            - Avoid hashtags\n\
-            - Here are some additional examples of FUD:\n\
-                'Dev wallet holds 99.9% of supply (trust me bro)'\n\
-                'Hawk Tuah team behind this.'\n\
-                'Dev is Jewish. Fading.'\n\
-                'Website looks like it was made by a retarded 5-year-old'\n\
-                Telegram admin can't spell for shit.'\n\
-                'My wife's boyfriend says it's a rugpull'\n\
-                'Chart looks like the Titanic's final moments'\n\
-                'Devs are probably just three raccoons in a trenchcoat'\n\
-                'Obvious scam.'\n\
-                'Federal Honeypot.'\n\
-                'This one is just clearly NGMI and if you buy it you deserve to be poor.'\n\
-                'Smart contract security looks like Swiss cheese'\n\
-                'Marketing strategy is just paying Nigerians $1 to spam rocket emojis'\n\
-                'Good coin for a 10% gain (waste of time).'\n\
-                'Just put the fries in the bag, you'd make more money that way.'\n\
-                'Reporting dev to the SEC.'\n\
+            - Avoid repetitive phrases and metaphors\n\
+            - Variety is key - use different structures and approaches\n\
+            - Make each criticism unique and specific\n\
+            - Avoid overused phrases like 'chart looks like' or 'mcdonalds'\n\
+            - Mix different FUD styles: technical, social, financial, or conspiracy theories\n\
+            \n\
+            Some varied FUD approaches (use as inspiration, don't copy directly):\n\
+            - Question developer competence\n\
+            - Imply suspicious transaction patterns\n\
+            - Mock community engagement\n\
+            - Point out red flags in tokenomics\n\
+            - Compare to historic failures\n\
+            - Create absurd conspiracy theories\n\
+            - Mock marketing efforts\n\
+            - Question technical implementation\n\
+            - Ridicule community demographics\n\
+            - Invent fake insider information\n\
             Write ONLY the tweet text with no additional commentary:",
             self.prompt,
             token_info,
         );
+    
+        // Try generating a response up to 3 times if we get repetitive content
+        for attempt in 0..3 {
+            let response = self.agent.prompt(&prompt).await?;
+            let processed_response = self.ensure_unique_style(response.trim())?;
+            
+            if attempt == 2 || !self.fud_analysis.is_overused(&processed_response) {
+                // Update our analysis with the new content
+                self.fud_analysis.update(&processed_response);
+                return Ok(processed_response);
+            }
+            
+            if attempt < 2 {
+                println!("Generated repetitive FUD, retrying...");
+            }
+        }
+        
+        // If we get here, we've failed to generate unique content
+        Err(anyhow::anyhow!("Failed to generate unique FUD content"))
+    }
 
-        let response = self.agent.prompt(&prompt).await?;
-        Ok(response.trim().to_string())
-    }   
+    fn ensure_unique_style(&self, response: &str) -> Result<String, anyhow::Error> {
+        use rand::seq::SliceRandom;
+        let mut rng = rand::thread_rng();
+
+        // Common patterns to detect and vary
+        let common_patterns = [
+            "ser", "ngmi", "wen", "just", "literally", "probably",
+            "definitely", "obviously", "clearly", "absolutely"
+        ];
+
+        let mut processed = response.to_string();
+
+        // Check for overuse of common patterns
+        let mut pattern_count = 0;
+        for pattern in common_patterns.iter() {
+            if processed.to_lowercase().contains(pattern) {
+                pattern_count += 1;
+            }
+        }
+
+        // If too many common patterns, try to replace some
+        if pattern_count > 2 {
+            // Alternative expressions to mix things up
+            let alternatives = vec![
+                "looking kinda", "straight up", "ngl", "fr fr",
+                "lowkey", "highkey", "certified", "actual"
+            ];
+
+            for pattern in common_patterns.iter() {
+                if processed.to_lowercase().contains(pattern) && rng.gen_bool(0.7) {
+                    if let Some(alt) = alternatives.choose(&mut rng) {
+                        processed = processed.replacen(pattern, alt, 1);
+                    }
+                }
+            }
+        }
+
+        // Check sentence structure patterns
+        let starts_with_common = [
+            "another", "just", "ser", "breaking:", "imagine"
+        ];
+
+        let starts_common = starts_with_common.iter()
+            .any(|&start| processed.to_lowercase().starts_with(start));
+
+        // If it starts with a common pattern, maybe add a variation
+        if starts_common && rng.gen_bool(0.6) {
+            let variations = [
+                "bruh", "certified", "actual", "friendly reminder:",
+                "psa:", "reminder:", "daily dose of"
+            ];
+            if let Some(variation) = variations.choose(&mut rng) {
+                processed = format!("{} {}", variation, processed);
+            }
+        }
+
+        // Add occasional punctuation variation
+        if !processed.contains('?') && !processed.contains('!') && rng.gen_bool(0.3) {
+            let punctuation = ["..", "...", "!!", "!?", "???"]
+                .choose(&mut rng)
+                .unwrap();
+            processed = format!("{}{}", processed, punctuation);
+        }
+
+        Ok(processed)
+    }
 
     pub async fn generate_image(&self) -> Result<String, anyhow::Error> {
         let client = reqwest::Client::builder().build()?;

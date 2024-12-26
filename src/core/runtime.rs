@@ -68,6 +68,33 @@ impl Runtime {
         }
     }
 
+    async fn run_debug_test(&mut self) -> Result<(), anyhow::Error> {
+        println!("\n=== Running Debug Mode FUD Generation Test ===");
+        println!("Fetching trending tokens...");
+        
+        let tokens = self.solana_tracker.get_top_tokens(30).await?;
+        println!("Retrieved {} tokens", tokens.len());
+        
+        let mut rng = rand::thread_rng();
+        let agent = &mut self.agents[0];
+        
+        println!("\nGenerating 5 sample FUD tweets:\n");
+        for i in 1..=5 {
+            if let Some(random_token) = tokens.get(rng.gen_range(0..tokens.len())) {
+                let token_summary = self.solana_tracker.format_token_summary(random_token);
+                println!("Test #{} - Token: ${}", i, random_token.token.symbol);
+                println!("Token Summary:\n{}\n", token_summary);
+                
+                let fud = agent.generate_editorialized_fud(&token_summary).await?;
+                println!("Generated FUD ({} chars):\n{}\n", fud.len(), fud);
+                println!("-----------------------------------\n");
+            }
+        }
+        
+        println!("=== Debug Test Complete ===\n");
+        Ok(())
+    }
+
     fn contains_recent_phrase(&mut self, text: &str) -> bool {
         // Split into 3-word phrases
         let words: Vec<&str> = text.split_whitespace().collect();
@@ -356,37 +383,59 @@ impl Runtime {
     }
 
     pub async fn run_periodically(&mut self) -> Result<(), anyhow::Error> {
-        println!("Starting periodic run loop...");
+        println!("=== Starting FUD Bot ===");
         println!("Character type: {}", self.character_config.name);
+        println!("Tweet mode enabled: {}", self.memory.tweet_mode);
+        println!("Debug mode enabled: {}", self.character_config.debug_mode);
+        println!("Number of agents: {}", self.agents.len());
         
+        if let Some(last_time) = self.last_tweet_time {
+            println!("Last tweet time: {:?}", last_time);
+        } else {
+            println!("No previous tweets recorded");
+        }
+        println!("======================\n");
+
+        // Run debug test if conditions are met
+        if self.memory.debug_mode && !self.memory.tweet_mode {
+            self.run_debug_test().await?;
+            return Ok(());  // Exit after debug test
+        }
+        
+        // Original periodic run loop
         loop {
             let now = Utc::now();
             
-            // For FUD character specific timing
             if self.character_config.name == "fud" {
                 if self.should_run_scheduled_action(&[0, 15, 30, 45]).await {
-                    if let Err(e) = self.generate_and_post_fud().await {
-                        eprintln!("Error generating FUD: {}", e);
+                    println!("Starting FUD generation attempt at {:02}:{:02}...", 
+                        now.hour(), now.minute());
+                    
+                    if !self.should_allow_tweet().await {
+                        println!("Rate limit cooldown in effect, skipping this cycle");
+                    } else {
+                        match self.generate_and_post_fud().await {
+                            Ok(_) => println!("Successfully completed FUD generation cycle"),
+                            Err(e) => eprintln!("Error generating FUD: {}", e)
+                        }
                     }
                 }
 
-                // Handle notifications every 5 minutes
                 if self.should_check_notifications().await {
                     if let Err(e) = self.handle_notifications_fud().await {
                         eprintln!("Error handling FUD notifications: {}", e);
                     }
                 }   
-            } else {
-                // Original behavior for non-FUD characters...
             }
 
-            // Sleep until next second
             let next_second = (now + chrono::Duration::seconds(1))
                 .with_nanosecond(0)
                 .unwrap();
             let duration_until_next = next_second.signed_duration_since(now);
             if duration_until_next.num_milliseconds() > 0 {
-                sleep(Duration::from_millis(duration_until_next.num_milliseconds() as u64)).await;
+                sleep(Duration::from_millis(
+                    duration_until_next.num_milliseconds() as u64
+                )).await;
             }
         }
     }
@@ -474,7 +523,7 @@ impl Runtime {
         
         if let Some(random_token) = tokens.get(rng.gen_range(0..tokens.len())) {
             let token_summary = self.solana_tracker.format_token_summary(random_token);
-            let agent = &self.agents[0];
+            let agent = &mut self.agents[0];
             
             let mut attempts = 0;
             const MAX_ATTEMPTS: usize = 3;
@@ -482,7 +531,6 @@ impl Runtime {
             loop {
                 let fud = agent.generate_editorialized_fud(&token_summary).await?;
                 
-                // Create a temporary set of phrases for checking
                 let contains_recent = {
                     let words: Vec<&str> = fud.split_whitespace().collect();
                     let mut found = false;
@@ -503,14 +551,12 @@ impl Runtime {
                                 println!("Posted scheduled FUD at {:02}:{:02}", now.hour(), now.minute());
                                 self.last_tweet_time = Some(now);
                                 
-                                // Update phrases after successful post
                                 let words: Vec<&str> = fud.split_whitespace().collect();
                                 for window in words.windows(3) {
                                     let phrase = window.join(" ").to_lowercase();
                                     self.recent_phrases.insert(phrase);
                                 }
     
-                                // Trim cache if needed
                                 if self.recent_phrases.len() > self.max_recent_phrases {
                                     let oldest: Vec<String> = self.recent_phrases
                                         .iter()
@@ -579,13 +625,12 @@ impl Runtime {
                 for tweet in notifications_to_process {
                     println!("Processing tweet: {}", tweet.text);
                     let tweet_id = tweet.id.to_string();
-                    let selected_agent = &self.agents[0];
+                    let selected_agent = &mut self.agents[0];
                     
                     let fud_response = if let Some((token, is_address)) = Self::extract_ticker_or_address(&tweet.text) {
                         println!("Found token/address in tweet: {} (is_address: {})", token, is_address);
                         
                         let token_info = if is_address {
-                            // Direct lookup by address
                             match self.solana_tracker.get_token_by_address(&token).await {
                                 Ok(token) => Some(token),
                                 Err(e) => {
@@ -594,11 +639,10 @@ impl Runtime {
                                 }
                             }
                         } else {
-                            // Lookup by symbol from top tokens
                             let tokens = self.solana_tracker.get_top_tokens(30).await?;
                             println!("Got {} tokens from tracker", tokens.len());
                             SolanaTracker::find_token_by_symbol(&tokens, &token)
-                                .cloned()  // Clone the found token since we're returning an owned value
+                                .cloned()
                         };
                         
                         if let Some(token) = token_info {
@@ -611,11 +655,9 @@ impl Runtime {
                             selected_agent.generate_editorialized_fud(&token_summary).await?
                         } else {
                             println!("No token found for {}, using generic FUD", token);
-                            // Generate generic FUD about any token not found
                             self.solana_tracker.generate_generic_fud_with_agent(selected_agent).await?
                         }
                     } else {
-                        // Skip tweets without token references
                         println!("No ticker/address found in tweet, skipping");
                         continue;
                     };
@@ -632,7 +674,7 @@ impl Runtime {
     
                     if self.memory.tweet_mode {
                         println!("Tweet mode is enabled, posting reply...");
-                        match self.twitter.reply_to_tweet(&tweet_id, fud_response).await {
+                        match self.twitter.reply_to_tweet(&tweet_id, fud_response.to_string()).await {
                             Ok(_) => {
                                 println!("Successfully replied to tweet {}", tweet_id);
                                 sleep(Duration::from_secs(30)).await;

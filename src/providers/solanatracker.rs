@@ -259,22 +259,10 @@ pub async fn get_token_by_address(&self, address: &str) -> Result<TokenResponse>
         format!(
             "Token: ${}\n\
              Market Cap: {}\n\
-             24h Volume: {}\n\
-             Holder Count: {}\n\
-             Age: {} days\n\
-             24h Transactions: {}\n\
-             Price Change: {}%\n\
-             Contract Age: {} days old\n\
-             Latest Activity: {} transactions in 24h",
+             Liquidity: {}\n",
             token.token.symbol,
             Self::format_currency(pool.price.calculate_market_cap()),
             Self::format_currency(pool.get_liquidity_usd()),
-            holder_count,
-            age_days,
-            transactions_24h,
-            pool.events.price_change_percentage_24h.unwrap_or(0.0),
-            age_days,
-            transactions_24h
         )
     }
     pub fn format_tokens_summary(&self, tokens: &[TokenResponse], limit: usize) -> String {

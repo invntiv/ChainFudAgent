@@ -37,4 +37,5 @@ pub struct ProcessedNotifications {
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct CharacterConfig {
     pub name: String,
+    pub debug_mode: bool,
 }
