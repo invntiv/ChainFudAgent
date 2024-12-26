@@ -285,12 +285,12 @@ impl Runtime {
         if self.agents.is_empty() {
             return Err(anyhow::anyhow!("No agents available"));
         }
-
+    
         // Only proceed if enough time has passed since last check
         if !self.should_check_notifications().await {
             return Ok(());
         }
-
+    
         let user_id = self.ensure_user_id().await?;
         
         match self.twitter.get_notifications(user_id).await {
@@ -302,15 +302,21 @@ impl Runtime {
                     .into_iter()
                     .filter(|tweet| !self.processed_tweets.contains(&tweet.id.to_string()))
                     .collect();
-
-                if let Some(tweet) = new_notifications.first() {
+    
+                println!("Found {} new notifications", new_notifications.len());
+    
+                // Take up to 3 notifications to process
+                let notifications_to_process = &new_notifications[..new_notifications.len().min(3)];
+                
+                for tweet in notifications_to_process {
                     let tweet_id = tweet.id.to_string();
-                    let selected_agent = &self.agents[0];
-
+                    let selected_agent = &mut self.agents[0];  // Changed to mut reference
+    
                     match selected_agent.should_respond(&tweet.text).await? {
                         ResponseDecision::Respond => {
+                            println!("Generating reply to: {}", tweet.text);
                             let reply = selected_agent.generate_reply(&tweet.text).await?;
-
+    
                             // Save to memory as a reply
                             if let Err(e) = MemoryStore::add_reply_to_memory(
                                 &mut self.memory,
@@ -321,17 +327,33 @@ impl Runtime {
                             ) {
                                 eprintln!("Failed to save response to memory: {}", e);
                             }
-
-                            self.twitter.reply_to_tweet(&tweet_id, reply).await?;
+    
+                            match self.twitter.reply_to_tweet(&tweet_id, reply.to_string()).await {
+                                Ok(_) => {
+                                    println!("Successfully replied to tweet {}", tweet_id);
+                                    // Add a delay between replies to avoid rate limits
+                                    sleep(Duration::from_secs(30)).await;
+                                }
+                                Err(e) => {
+                                    if e.to_string().contains("429") {
+                                        println!("Rate limit hit, stopping notification processing");
+                                        break;
+                                    } else {
+                                        println!("Error sending reply: {}", e);
+                                    }
+                                }
+                            }
                         }
                         ResponseDecision::Ignore => {
                             println!("Agent decided to ignore tweet: {}", tweet.text);
                         }
                     }
-
+    
                     self.processed_tweets.insert(tweet_id);
-                    MemoryStore::save_processed_tweets(&self.processed_tweets)?;
                 }
+    
+                // Save all processed tweets at the end
+                MemoryStore::save_processed_tweets(&self.processed_tweets)?;
                 
                 Ok(())
             }
@@ -345,8 +367,8 @@ impl Runtime {
                 }
             }
         }
-    }
     
+    }
 
     fn schedule_next_tweet(&mut self) {
         let mut rng = rand::thread_rng();
