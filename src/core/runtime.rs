@@ -2,6 +2,12 @@ use chrono::{DateTime, Timelike, Utc};
 use rand::Rng;
 use std::collections::HashSet;
 use tokio::time::{sleep, Duration};
+use std::path::PathBuf;
+use std::error::Error;
+use std::fs;
+use rand::seq::SliceRandom;
+use rand::thread_rng;
+use std::path::Path;
 
 use crate::{
     core::agent::{Agent, ResponseDecision},
@@ -436,6 +442,7 @@ impl Runtime {
                     if !self.should_allow_tweet().await {
                         println!("Rate limit cooldown in effect, skipping this cycle");
                     } else {
+                        
                         match self.generate_and_post_fud().await {
                             Ok(_) => println!("Successfully completed FUD generation cycle"),
                             Err(e) => eprintln!("Error generating FUD: {}", e)
@@ -533,6 +540,36 @@ impl Runtime {
         ticker.to_uppercase()
     }
 
+    fn get_random_images(count: usize) -> Result<Vec<PathBuf>, Box<dyn Error>> {
+        let source_dir = Path::new("./storage/charts");
+        let mut images: Vec<PathBuf> = Vec::new();
+        
+        // Read all PNG files from the directory
+        for entry in fs::read_dir(source_dir)? {
+            let entry = entry?;
+            let path = entry.path();
+            
+            if let Some(extension) = path.extension() {
+                if extension == "png" {
+                    images.push(path);
+                }
+            }
+        }
+    
+        if images.is_empty() {
+            return Err("No PNG images found in ./storage/charts directory".into());
+        }
+    
+        // Shuffle and take requested number of images
+        let mut rng = thread_rng();
+        images.shuffle(&mut rng);
+        
+        // Take minimum of requested count and available images
+        let actual_count = count.min(images.len());
+        Ok(images.into_iter().take(actual_count).collect())
+    }
+    
+
     async fn generate_and_post_fud(&mut self) -> Result<(), anyhow::Error> {
         let now = Utc::now();
     
@@ -550,7 +587,7 @@ impl Runtime {
             
             let mut attempts = 0;
             const MAX_ATTEMPTS: usize = 3;
-            
+                
             loop {
                 let fud = agent.generate_editorialized_fud(&token_summary).await?;
                 
@@ -569,29 +606,59 @@ impl Runtime {
     
                 if !contains_recent || attempts >= MAX_ATTEMPTS {
                     if self.memory.tweet_mode {
-                        match self.twitter.tweet(fud.clone()).await {
-                            Ok(_) => {
-                                println!("Posted scheduled FUD at {:02}:{:02}", now.hour(), now.minute());
-                                self.last_tweet_time = Some(now);
-                                
-                                let words: Vec<&str> = fud.split_whitespace().collect();
-                                for window in words.windows(3) {
-                                    let phrase = window.join(" ").to_lowercase();
-                                    self.recent_phrases.insert(phrase);
-                                }
-    
-                                if self.recent_phrases.len() > self.max_recent_phrases {
-                                    let oldest: Vec<String> = self.recent_phrases
-                                        .iter()
-                                        .take(self.recent_phrases.len() - self.max_recent_phrases)
-                                        .cloned()
-                                        .collect();
-                                    for phrase in oldest {
-                                        self.recent_phrases.remove(&phrase);
+                        // Get user ID once before the branching logic
+                        let user_id = self.ensure_user_id().await?;
+                        
+                        // 30% chance to post with image
+                        if rng.gen_bool(0.3) {
+                            match Self::get_random_images(1) {
+                                Ok(images) if !images.is_empty() => {
+                                    // Read the image file
+                                    if let Ok(image_data) = fs::read(&images[0]) {
+                                        // Upload the image and get media_id
+                                        match self.twitter.upload_bytes(image_data).await {
+                                            Ok(media_id) => {
+                                                match self.twitter.tweet_with_image(fud.clone(), media_id, user_id).await {
+                                                    Ok(_) => {
+                                                        println!("Posted scheduled FUD with image at {:02}:{:02}", now.hour(), now.minute());
+                                                        self.last_tweet_time = Some(now);
+                                                    }
+                                                    Err(e) => eprintln!("Failed to post FUD tweet with image: {}", e),
+                                                }
+                                            }
+                                            Err(e) => eprintln!("Failed to upload image: {}", e),
+                                        }
                                     }
                                 }
-                            },
-                            Err(e) => eprintln!("Failed to post FUD tweet: {}", e),
+                                _ => eprintln!("Failed to get random image"),
+                            }
+                        } else {
+                            // Regular tweet without image
+                            match self.twitter.tweet(fud.clone()).await {
+                                Ok(_) => {
+                                    println!("Posted scheduled FUD at {:02}:{:02}", now.hour(), now.minute());
+                                    self.last_tweet_time = Some(now);
+                                }
+                                Err(e) => eprintln!("Failed to post FUD tweet: {}", e),
+                            }
+                        }
+                        
+                        // Update recent phrases
+                        let words: Vec<&str> = fud.split_whitespace().collect();
+                        for window in words.windows(3) {
+                            let phrase = window.join(" ").to_lowercase();
+                            self.recent_phrases.insert(phrase);
+                        }
+    
+                        if self.recent_phrases.len() > self.max_recent_phrases {
+                            let oldest: Vec<String> = self.recent_phrases
+                                .iter()
+                                .take(self.recent_phrases.len() - self.max_recent_phrases)
+                                .cloned()
+                                .collect();
+                            for phrase in oldest {
+                                self.recent_phrases.remove(&phrase);
+                            }
                         }
                     }
                     break;
