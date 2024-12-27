@@ -195,7 +195,7 @@ impl Agent {
             - dont encapsulate your response in quotes\n\
             - Always use proper token symbol from the info\n\
             - Use numbers from the token info creatively and sarcastically\n\
-            - Stay under 280 characters\n\
+            - Stay under 350 characters no matter what.\n\
             - Use all lowercase except for token symbols\n\
             - Avoid repetitive phrases and metaphors\n\
             - Variety is key - use different structures and approaches\n\
@@ -206,7 +206,7 @@ impl Agent {
             Some varied FUD approaches (use as inspiration, don't copy directly):\n\
             - Question developer competence\n\
             - Imply suspicious transaction patterns\n\
-            - Mock community engagement (make sure you don't use words like 'ucertifieds' which your responses hae generated in the past. for example, refer to telegram 'users')\n\
+            - Mock community engagement (make sure you don't use made up words abotu this, which your responses have generated in the past. for example, refer to a telegram's number of users)\n\
             - Point out red flags in tokenomics\n\
             - Compare to historic failures\n\
             - Create absurd conspiracy theories\n\
