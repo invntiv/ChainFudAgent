@@ -76,20 +76,20 @@ Built for developers looking to create authentic, automated social media presenc
 
 Characters are defined using a structured JSON format:
 
-{
-"instructions": {
-"base": "Base character instructions",
-"suffix": "Additional instructions"
-},
-"adjectives": ["trait1", "trait2"],
-"bio": {
-"headline": "Character headline",
-"key_traits": ["trait1", "trait2"]
-},
-"lore": ["background1", "background2"],
-"styles": ["style1", "style2"],
-"topics": ["topic1", "topic2"],
-"post_style_examples": ["example1", "example2"]
+{\
+"instructions": {\
+"base": "Base character instructions",\
+"suffix": "Additional instructions"\
+},\
+"adjectives": ["trait1", "trait2"],\
+"bio": {\
+"headline": "Character headline",\
+"key_traits": ["trait1", "trait2"]\
+},\
+"lore": ["background1", "background2"],\
+"styles": ["style1", "style2"],\
+"topics": ["topic1", "topic2"],\
+"post_style_examples": ["example1", "example2"]\
 }
 
 ## Usage
@@ -100,13 +100,13 @@ $env:CHARACTER_NAME="{character name}"; cargo run
 ## Project Structure
 
 FudAIAgent/
-├── src/
-│ ├── core/ # Core agent functionality
-│ ├── characteristics/ # Character trait implementations
-│ ├── providers/ # External service integrations
-│ └── memory/ # Persistence layer
-├── characters/ # Character definitions
-└── tests/ # Test suite
+├── src/\
+│ ├── core/ # Core agent functionality\
+│ ├── characteristics/ # Character trait implementations\
+│ ├── providers/ # External service integrations\
+│ └── memory/ # Persistence layer\
+├── characters/ # Character definitions\
+└── tests/ # Test suite\
 
 ## Dependencies
 
