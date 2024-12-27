@@ -1,15 +1,12 @@
 # DOC
 
-- Added multi-profile support; run a specific character by typing ` $env:CHARACTER_NAME="rina"; cargo run`
-- FUD Character: `$env:CHARACTER_NAME="fud"; cargo run`
+- Multi-profile support; run a specific character by typing ` $env:CHARACTER_NAME="fud"; cargo run`
 
-# RINA
 
-![banner](https://github.com/user-attachments/assets/0a999247-098b-4ba9-9126-45d8ccc17c86)
 
 A Rust-based AI agent implementation using [rig](https://github.com/0xPlaygrounds/rig) for AI functionality, powering an autonomous social media presence on X (formerly Twitter).
 
-Follow our AI agent: [@Rina_RIG](https://x.com/Rina_RIG)
+Follow our AI agent: [@Rina_RIG](https://x.com/FudAIAgent)
 
 ## Overview
 
