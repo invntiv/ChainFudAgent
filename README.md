@@ -64,17 +64,17 @@ Built for developers looking to create authentic, automated social media presenc
 ## Installation
 
 1. Clone the repository:  
-   git clone https://github.com/invntiv/FudAIAgent  
-   cd FudAIAgent  
+   `git clone https://github.com/invntiv/FudAIAgent`  
+   `cd FudAIAgent`    
 
 2. Create a `.env` file with required credentials:  
-   ANTHROPIC_API_KEY=your_api_key  
+   `ANTHROPIC_API_KEY=your_api_key  
    TWITTER_CONSUMER_KEY=your_key  
    TWITTER_CONSUMER_SECRET=your_secret  
    TWITTER_ACCESS_TOKEN=your_token  
    TWITTER_ACCESS_TOKEN_SECRET=your_token_secret  
    CHARACTER_NAME=your_character_name  
-   SOLANA_TRACKER_API_KEY=your_solanatracker_api_key  
+   SOLANA_TRACKER_API_KEY=your_solanatracker_api_key`  
 
 4. Configure your character:
    - Create a new directory: `characters/{CHARACTER_NAME}/`  
@@ -103,7 +103,7 @@ Characters are defined using a structured JSON format:
 ## Usage
 
 Run the agent:
-$env:CHARACTER_NAME="{character name}"; cargo run
+`$env:CHARACTER_NAME="{character name}"; cargo run`
 
 ## Project Structure
 
