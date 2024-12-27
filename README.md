@@ -3,13 +3,14 @@
 ## TLDR;
 AI Agent framework with multi-profile support; 
 - Create a new profile in ./characters
+- Set API keys in .env (see Installation step #2 below)
 - Run a specific character by typing:
   -- Powershell: `$env:CHARACTER_NAME="fud"; cargo run`
   -- Command prompt: `set CHARACTER_NAME=fud; cargo run`
 
 ## FudAI
 
-A Rust-based AI agent implementation using [rig](https://github.com/0xPlaygrounds/rig) for AI functionality, powering an autonomous social media presence on X (formerly Twitter).
+A Rust-based AI agent implementation featuring [SolanaTracker API](https://www.solanatracker.io/) integration and [rig](https://github.com/0xPlaygrounds/rig) for AI functionality, powering an autonomous social media presence on X.
 
 Follow our AI agent: [@FudAIAgent](https://x.com/FudAIAgent)
 
@@ -99,7 +100,7 @@ $env:CHARACTER_NAME="{character name}"; cargo run
 
 ## Project Structure
 
-FudAIAgent/
+FudAIAgent/\
 ├── src/\
 │ ├── core/ # Core agent functionality\
 │ ├── characteristics/ # Character trait implementations\
