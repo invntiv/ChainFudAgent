@@ -9,7 +9,8 @@ AI Agent framework with multi-profile support;
   -- Command prompt: `set CHARACTER_NAME=fud; cargo run`
 
 ## FudAI
-
+![banner](https://i.ibb.co/fMJfKZB/testsubject125-by-terojako-dieqlzj-pre.jpg)  
+  
 A Rust-based AI agent implementation featuring [SolanaTracker API](https://www.solanatracker.io/) integration and [rig](https://github.com/0xPlaygrounds/rig) for AI functionality, powering an autonomous social media presence on X.
 
 Follow our AI agent: [@FudAIAgent](https://x.com/FudAIAgent)
@@ -32,6 +33,12 @@ The agent maintains engaging social media presences through:
 - Responds thoughtfully to interactions and mentions
 - Maintains natural conversation flows with intelligent filtering
 - Introduces random timing delays to mirror human behavior
+- Uploads engaging images to enhance posts
+- Intelligently pairs visual content with text for maximum impact
+
+**Example tweet media:**  
+<img src="https://i.ibb.co/FxqJB0v/crash-chart-472.png" alt="crash" width="200"/>  
+
 
 **Contextual Memory**
 - Records and learns from past interactions
