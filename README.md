@@ -1,47 +1,49 @@
 
-Multi-profile support; run a specific character by typing ` $env:CHARACTER_NAME="fud"; cargo run`
+
+## TLDR;
+AI Agent framework with multi-profile support; 
+- Create a new profile in ./characters
+- Run a specific character by typing:
+  -- Powershell: `$env:CHARACTER_NAME="fud"; cargo run`
+  -- Command prompt: `set CHARACTER_NAME=fud; cargo run`
+
+## FudAI
 
 A Rust-based AI agent implementation using [rig](https://github.com/0xPlaygrounds/rig) for AI functionality, powering an autonomous social media presence on X (formerly Twitter).
 
-Follow our AI agent: [@Rina_RIG](https://x.com/FudAIAgent)
+Follow our AI agent: [@FudAIAgent](https://x.com/FudAIAgent)
 
-## Overview
+# Social Media AI Agent
 
-This project implements an AI-powered social media agent that autonomously engages on social media platforms while maintaining consistent personality traits and natural interaction patterns. Built with Rust for performance and reliability, it leverages the rig framework for core AI functionality.
+A Rust-based autonomous social media agent that engages authentically across platforms through consistent personality traits and natural interaction patterns. Built using the rig framework for AI capabilities.
 
-## Key Features
+## Capabilities
 
-### Character-Based Design
+The agent maintains engaging social media presences through:
 
-- Structured personality system for consistent trait expression
-- Configurable writing styles and topic preferences
-- Dynamic response generation based on character profile
+**Dynamic Personality Engine**
+- Creates consistent interactions through structured personality profiles
+- Adapts writing style and topics based on configurable preferences
+- Generates unique responses that align with the character's traits
 
-### Autonomous Interaction
+**Automated Social Engagement** 
+- Posts original content based on interests and context
+- Responds thoughtfully to interactions and mentions
+- Maintains natural conversation flows with intelligent filtering
+- Introduces random timing delays to mirror human behavior
 
-- Generates contextually relevant original posts
-- Responds intelligently to mentions and interactions
-- Smart filtering system for engagement prioritization
-- Natural conversation flow maintenance
+**Contextual Memory**
+- Records and learns from past interactions
+- Builds relationships with other users over time
+- Leverages conversation history for relevant responses
 
-### Advanced Memory System
+**Technical Foundation**
+- Full Twitter API v2 integration with built-in rate limiting
+- Modular architecture separating core logic from platform specifics
+- Extensible design for adding new traits and platform integrations
+- Efficient Rust implementation prioritizing performance and reliability
 
-- Persistent storage of interaction history
-- Context-aware response generation
-- Relationship tracking with other users
-
-### Platform Integration
-
-- Built-in rate limiting and scheduling
-- Random delays for natural posting patterns
-- Comprehensive Twitter API v2 integration
-
-### Modular Architecture
-
-- Clean separation between core logic and integrations
-- Extensible character trait system
-- Pluggable provider architecture
-- Efficient memory management
+Built for developers looking to create authentic, automated social media presences that engage meaningfully while maintaining consistent personalities.
 
 ## Prerequisites
 
