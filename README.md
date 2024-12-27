@@ -1,8 +1,5 @@
-# DOC
 
-- Multi-profile support; run a specific character by typing ` $env:CHARACTER_NAME="fud"; cargo run`
-
-
+Multi-profile support; run a specific character by typing ` $env:CHARACTER_NAME="fud"; cargo run`
 
 A Rust-based AI agent implementation using [rig](https://github.com/0xPlaygrounds/rig) for AI functionality, powering an autonomous social media presence on X (formerly Twitter).
 
@@ -100,7 +97,7 @@ $env:CHARACTER_NAME="{character name}"; cargo run
 
 ## Project Structure
 
-rina/
+FudAIAgent/
 ├── src/
 │ ├── core/ # Core agent functionality
 │ ├── characteristics/ # Character trait implementations
