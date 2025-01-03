@@ -144,7 +144,6 @@ impl Runtime {
             "Obvious scam.",
             "Federal Honeypot.",
             "This one is just clearly NGMI and if you buy it you deserve to be poor.",
-            "Smart contract security looks like Swiss cheese",
             "Marketing strategy is just paying Nigerians $1 to spam rocket emojis",
             "Good coin for a 10% gain (waste of time).",
             "Just put the fries in the bag, you'd make more money that way.",
