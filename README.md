@@ -60,8 +60,8 @@ A Rust-based AI agent implementation featuring [SolanaTracker API](https://www.s
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/invntiv/FudAIAgent
-   cd FudAIAgent
+   git clone https://github.com/invntiv/ChainFudAgent
+   cd ChainFudAgent
    ```
 
 2. Create a `.env` file with required credentials:
