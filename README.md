@@ -44,6 +44,7 @@ A Rust-based AI agent implementation featuring [SolanaTracker API](https://www.s
 
 ### Technical Foundation
 - Full Twitter API v2 integration with built-in rate limiting
+- Supports Grok, Claude, GPT, Perplexity, Gemini, and more.
 - Modular architecture separating core logic from platform specifics
 - Extensible design for adding new traits and platform integrations
 - Efficient Rust implementation prioritizing performance and reliability
@@ -52,7 +53,7 @@ A Rust-based AI agent implementation featuring [SolanaTracker API](https://www.s
 
 - Rust (latest stable version)
 - API Keys:
-  - Anthropic Claude API access
+  - Anthropic Claude API access (or any other supported LLM)
   - Twitter API v2 credentials (OAuth 1.0a)
   - SolanaTracker API
 
